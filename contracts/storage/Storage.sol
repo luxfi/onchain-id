@@ -31,8 +31,15 @@ contract Storage is Structs {
     bool internal _canInteract = false;
 
     /**
+     * @dev nonce used to validate signature of operations.
+     * executeSigned must verify that the nonce is the next sequential nonce before calling approveAndExecute.
+     * Nonce validation is not required for approve function (as the executionNonce already fulfills this role).
+     */
+    uint256 internal _operationNonce = 0;
+
+    /**
      * @dev This empty reserved space is put in place to allow future versions to add new
      * variables without shifting down storage in the inheritance chain.
      */
-    uint256[49] private __gap;
+    uint256[48] private __gap;
 }

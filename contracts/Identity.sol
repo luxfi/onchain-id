@@ -114,13 +114,13 @@ contract Identity is Storage, IIdentity, Version {
      * @param _keyType The type of key used for the signature, a uint256 for different key types. 1 = ECDSA, 2 = RSA, 3 = P256.
      * @return executionId to use in the approve function, to approve or reject this execution.
      */
-    function executeSigned(address _to, uint256 _value, bytes memory _data, uint256 _keyType, uint8 v, bytes32 r, bytes32 s)
+    function executeSigned(address _to, uint256 _value, bytes memory _data, uint256 nonce, uint256 _keyType, uint8 v, bytes32 r, bytes32 s)
     external
     delegatedOnly
     override
     payable
     returns (uint256 executionId) {
-        bytes32 executionSigner = _recoverSignerForExecution(_to, _value, _data, _keyType, v, r, s);
+        bytes32 executionSigner = _recoverSignerForExecution(_to, _value, _data, nonce, _keyType, v, r, s);
 
         uint256 _executionId = _executionNonce;
         _executions[_executionId].to = _to;
@@ -131,9 +131,14 @@ contract Identity is Storage, IIdentity, Version {
         emit ExecutionRequested(_executionId, _to, _value, _data);
 
         if (keyHasPurpose(executionSigner, 1)) {
+            require(nonce == _operationNonce, "Invalid nonce");
+            _operationNonce++;
+
             _approveAndExecute(_executionId, true);
-        }
-        else if (_to != address(this) && keyHasPurpose(executionSigner, 2)){
+        } else if (_to != address(this) && keyHasPurpose(executionSigner, 2)){
+            require(nonce == _operationNonce, "Invalid nonce");
+            _operationNonce++;
+
             _approveAndExecute(_executionId, true);
         }
 
@@ -670,13 +675,14 @@ contract Identity is Storage, IIdentity, Version {
         address _to,
         uint256 _value,
         bytes memory _data,
+        uint256 _nonce,
         uint256 _keyType,
         uint8 v,
         bytes32 r,
         bytes32 s
     ) internal delegatedOnly view returns(bytes32 keyHash) {
         if (_keyType == 1) {
-            bytes32 dataHash = keccak256(abi.encode(address(this), _to, _value, _data));
+            bytes32 dataHash = keccak256(abi.encode(address(this), _to, _value, _data, _nonce));
             bytes32 prefixedHash = keccak256(
                 abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)
             );
@@ -713,6 +719,14 @@ contract Identity is Storage, IIdentity, Version {
         } else {
             revert("Invalid key type");
         }
+    }
+
+    /**
+     * @notice Return the operation nonce (for signed operations).
+     * @return The next sequential nonce.
+     */
+    function getNonce() public view virtual returns (uint256) {
+        return _operationNonce;
     }
 
     /**

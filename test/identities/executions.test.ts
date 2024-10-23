@@ -278,12 +278,12 @@ describe('Identity', () => {
             };
 
             const signature = await aliceWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-              ['address', 'address', 'uint256', 'bytes'],
-              [await aliceIdentity.getAddress(), action.to, action.value, action.data],
+              ['address', 'address', 'uint256', 'bytes', 'uint256'],
+              [await aliceIdentity.getAddress(), action.to, action.value, action.data, 0],
             ))));
             const signatureParsed = ethers.Signature.from(signature);
 
-            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
             await expect(tx).to.emit(aliceIdentity, 'Approved');
             await expect(tx).to.emit(aliceIdentity, 'Executed');
             const newBalance = await ethers.provider.getBalance(carolWallet);
@@ -309,12 +309,12 @@ describe('Identity', () => {
             };
 
             const signature = await aliceWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-              ['address', 'address', 'uint256', 'bytes'],
-              [await aliceIdentity.getAddress(), action.to, action.value, action.data]
+              ['address', 'address', 'uint256', 'bytes', 'uint256'],
+              [await aliceIdentity.getAddress(), action.to, action.value, action.data, 0]
             ))));
             const signatureParsed = ethers.Signature.from(signature);
 
-            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
             await expect(tx).to.emit(aliceIdentity, 'Approved');
             await expect(tx).to.emit(aliceIdentity, 'ExecutionFailed');
           });
@@ -339,12 +339,12 @@ describe('Identity', () => {
             };
 
             const signature = await aliceWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-              ['address', 'address', 'uint256', 'bytes'],
-              [await aliceIdentity.getAddress(), action.to, action.value, action.data]
+              ['address', 'address', 'uint256', 'bytes', 'uint256'],
+              [await aliceIdentity.getAddress(), action.to, action.value, action.data, 0]
             ))));
             const signatureParsed = ethers.Signature.from(signature);
 
-            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
             await expect(tx).to.emit(aliceIdentity, 'Approved');
             await expect(tx).to.emit(aliceIdentity, 'Executed');
 
@@ -371,12 +371,12 @@ describe('Identity', () => {
             };
 
             const signature = await aliceWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-              ['address', 'address', 'uint256', 'bytes'],
-              [await aliceIdentity.getAddress(), action.to, action.value, action.data]
+              ['address', 'address', 'uint256', 'bytes', 'uint256'],
+              [await aliceIdentity.getAddress(), action.to, action.value, action.data, 0]
             ))));
             const signatureParsed = ethers.Signature.from(signature);
 
-            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
             await expect(tx).to.emit(aliceIdentity, 'Approved');
             await expect(tx).to.emit(aliceIdentity, 'ExecutionFailed');
             const newBalance = await ethers.provider.getBalance(carolWallet);
@@ -410,12 +410,12 @@ describe('Identity', () => {
             };
 
             const signature = await carolWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-              ['address', 'uint256', 'bytes'],
-              [action.to, action.value, action.data]
+              ['address', 'uint256', 'bytes', 'uint256'],
+              [action.to, action.value, action.data, 0]
             ))));
             const signatureParsed = ethers.Signature.from(signature);
 
-            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
             await expect(tx).to.emit(aliceIdentity, 'ExecutionRequested');
           });
         });
@@ -446,12 +446,12 @@ describe('Identity', () => {
             const previousBalance = await ethers.provider.getBalance(bobIdentity);
 
             const signature = await carolWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-              ['address', 'address', 'uint256', 'bytes'],
-              [await aliceIdentity.getAddress(), action.to, action.value, action.data]
+              ['address', 'address', 'uint256', 'bytes', 'uint256'],
+              [await aliceIdentity.getAddress(), action.to, action.value, action.data, 0]
             ))));
             const signatureParsed = ethers.Signature.from(signature);
 
-            const tx = await aliceIdentity.connect(davidWallet).executeSigned(action.to, action.value, action.data, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+            const tx = await aliceIdentity.connect(davidWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
             await expect(tx).to.emit(aliceIdentity, 'Approved');
             await expect(tx).to.emit(aliceIdentity, 'ExecutionFailed');
             const newBalance = await ethers.provider.getBalance(bobIdentity);
@@ -478,18 +478,54 @@ describe('Identity', () => {
             };
 
             const signature = await carolWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-              ['address', 'address', 'uint256', 'bytes'],
-              [await aliceIdentity.getAddress(), action.to, action.value, action.data]
+              ['address', 'address', 'uint256', 'bytes', 'uint256'],
+              [await aliceIdentity.getAddress(), action.to, action.value, action.data, 0]
             ))));
             const signatureParsed = ethers.Signature.from(signature);
 
-            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
             await expect(tx).to.emit(aliceIdentity, 'Approved');
             await expect(tx).to.emit(aliceIdentity, 'Executed');
             const newBalance = await ethers.provider.getBalance(davidWallet);
 
             expect(newBalance).to.equal(previousBalance + BigInt(action.value));
           });
+
+          describe('when nonce was already used', () => {
+            it('should failed for nonce already used', async () => {
+              const {aliceIdentity, aliceWallet, carolWallet, davidWallet, bobIdentity} = await loadFixture(deployIdentityFixture);
+
+              const carolKeyHash = ethers.keccak256(
+                ethers.AbiCoder.defaultAbiCoder().encode(['address'], [await carolWallet.getAddress()])
+              );
+              await aliceIdentity.connect(aliceWallet).addKey(carolKeyHash, 2, 1);
+
+              const aliceKeyHash = ethers.keccak256(
+                ethers.AbiCoder.defaultAbiCoder().encode(['address'], [await aliceWallet.getAddress()])
+              );
+
+              const action = {
+                to: await bobIdentity.getAddress(),
+                value: 10,
+                data: new ethers.Interface(['function addKey(bytes32 key, uint256 purpose, uint256 keyType) returns (bool success)']).encodeFunctionData('addKey', [
+                  aliceKeyHash,
+                  3,
+                  1,
+                ]),
+              };
+
+              const signature = await carolWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
+                ['address', 'address', 'uint256', 'bytes', 'uint256'],
+                [await aliceIdentity.getAddress(), action.to, action.value, action.data, 0]
+              ))));
+              const signatureParsed = ethers.Signature.from(signature);
+
+              await aliceIdentity.connect(davidWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+
+              await expect(aliceIdentity.connect(davidWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s)).to.be.revertedWith('Invalid nonce');
+
+            });
+          })
         });
       });
 
@@ -505,12 +541,12 @@ describe('Identity', () => {
           };
 
           const signature = await bobWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-            ['address', 'uint256', 'bytes'],
-            [action.to, action.value, action.data]
+            ['address', 'uint256', 'bytes', 'uint256'],
+            [action.to, action.value, action.data, 0]
           ))));
           const signatureParsed = ethers.Signature.from(signature);
 
-          const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+          const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
           await expect(tx).to.emit(aliceIdentity, 'ExecutionRequested');
 
           const newBalance = await ethers.provider.getBalance(carolWallet);
@@ -558,12 +594,12 @@ describe('Identity', () => {
               data: '0x',
             };
             const signature = await aliceWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-              ['address', 'address', 'uint256', 'bytes'],
-              [await aliceIdentity.getAddress(), action.to, action.value, action.data],
+              ['address', 'address', 'uint256', 'bytes', 'uint256'],
+              [await aliceIdentity.getAddress(), action.to, action.value, action.data, 0],
             ))));
             const signatureParsed = ethers.Signature.from(signature);
 
-            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
+            const tx = await aliceIdentity.connect(bobWallet).executeSigned(action.to, action.value, action.data, 0, 1, signatureParsed.v, signatureParsed.r, signatureParsed.s);
             await expect(tx).to.emit(aliceIdentity, 'Approved');
             await expect(tx).to.emit(aliceIdentity, 'Executed');
             const newBalance = await ethers.provider.getBalance(carolWallet);
