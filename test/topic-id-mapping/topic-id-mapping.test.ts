@@ -2,6 +2,9 @@ import { ethers } from "hardhat";
 import { expect } from "chai";
 
 describe("TopicIdMapping", () => {
+    const TEST_TOPIC_ID = 10101000100000;
+    const TEST_TOPIC_NAME = "INDIVIDUAL_INVESTOR";
+
   it("should deploy", async () => {
    await ethers.getSigners();
     const topicIdMapping = await ethers.deployContract("TopicIdMapping", []);
@@ -20,13 +23,13 @@ describe("TopicIdMapping", () => {
     const [deployerWallet, otherWallet] = await ethers.getSigners();
     const topicIdMapping = await ethers.deployContract("TopicIdMapping", []);
     await expect(
-      topicIdMapping.connect(otherWallet).setTopicContent(123, "10101000100000")
+      topicIdMapping.connect(otherWallet).setTopicName(TEST_TOPIC_ID, TEST_TOPIC_NAME)
     ).to.be.revertedWith("Ownable: caller is not the owner");
 
     await expect(
       topicIdMapping
         .connect(deployerWallet)
-        .setTopicContent(123, "10101000100000")
+        .setTopicName(TEST_TOPIC_ID, TEST_TOPIC_NAME)
     ).to.be.ok;
   });
 
@@ -35,9 +38,9 @@ describe("TopicIdMapping", () => {
     const topicIdMapping = await ethers.deployContract("TopicIdMapping", []);
     await topicIdMapping
       .connect(deployerWallet)
-      .setTopicContent(123, "10101000100000");
+      .setTopicName(TEST_TOPIC_ID, TEST_TOPIC_NAME);
     await expect(
-      topicIdMapping.getTopicContent(123)
-    ).to.eventually.equal("10101000100000");
+      topicIdMapping.getTopicName(TEST_TOPIC_ID)
+    ).to.eventually.equal(TEST_TOPIC_NAME);
   });
 });
