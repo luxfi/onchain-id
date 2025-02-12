@@ -13,9 +13,9 @@ contract TopicIdMapping is Ownable {
     /// @notice Saves the name for a given topic
     function setTopicName(
         uint256 _topic,
-        string memory _content
+        string memory _name
     ) external onlyOwner {
-        topicToName[_topic] = _content;
+        topicToName[_topic] = _name;
     }
 
     /// @notice Returns the name for a given topic
