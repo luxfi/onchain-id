@@ -20,7 +20,7 @@ contract TopicIdMapping is Ownable {
     /// @notice Returns the name for a given topic
     function getTopicName(
         uint256 _topic
-    ) external view returns (string memory) {
+    ) external view returns (string memory _name) {
         return topicToName[_topic];
     }
 }
