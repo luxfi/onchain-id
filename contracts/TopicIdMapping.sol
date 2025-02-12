@@ -5,7 +5,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @notice This contract is used to map a claim topic id to its name
 /** @dev this contract stores and returns the names for different topics
-please, check the following link for reference https://docs.onchainid.com/docs/developers/sdk/constants/
 */
 contract TopicIdMapping is Ownable {
     mapping(uint256 => string) public topicToName;
