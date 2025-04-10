@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { deployFactoryFixture } from "../fixtures";
+import { deployFactoryFixture, KeyPurposes } from "../fixtures";
 
 const oneYearInSeconds = 365n * 24n * 60n * 60n;
 
@@ -87,7 +87,7 @@ describe('Gateway', () => {
         await expect(tx).to.emit(identityFactory, "Deployed").withArgs(await identityFactory.getIdentity(aliceWallet.address));
         const identityAddress = await identityFactory.getIdentity(aliceWallet.address);
         const identity = await ethers.getContractAt('Identity', identityAddress);
-        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), 1)).to.be.true;
+        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), KeyPurposes.MANAGEMENT)).to.be.true;
       });
     });
 
@@ -120,7 +120,7 @@ describe('Gateway', () => {
         await expect(tx).to.emit(identityFactory, "Deployed").withArgs(await identityFactory.getIdentity(aliceWallet.address));
         const identityAddress = await identityFactory.getIdentity(aliceWallet.address);
         const identity = await ethers.getContractAt('Identity', identityAddress);
-        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), 1)).to.be.true;
+        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), KeyPurposes.MANAGEMENT)).to.be.true;
       });
     });
 
@@ -270,8 +270,8 @@ describe('Gateway', () => {
         await expect(tx).to.emit(identityFactory, "Deployed").withArgs(await identityFactory.getIdentity(aliceWallet.address));
         const identityAddress = await identityFactory.getIdentity(aliceWallet.address);
         const identity = await ethers.getContractAt('Identity', identityAddress);
-        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), 1)).to.be.false;
-        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [bobWallet.address])), 1)).to.be.true;
+        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), KeyPurposes.MANAGEMENT)).to.be.false;
+        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [bobWallet.address])), KeyPurposes.MANAGEMENT)).to.be.true;
       });
     });
 
@@ -309,8 +309,8 @@ describe('Gateway', () => {
         await expect(tx).to.emit(identityFactory, "Deployed").withArgs(await identityFactory.getIdentity(aliceWallet.address));
         const identityAddress = await identityFactory.getIdentity(aliceWallet.address);
         const identity = await ethers.getContractAt('Identity', identityAddress);
-        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), 1)).to.be.false;
-        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [bobWallet.address])), 1)).to.be.true;
+        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), KeyPurposes.MANAGEMENT)).to.be.false;
+        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [bobWallet.address])), KeyPurposes.MANAGEMENT)).to.be.true;
       });
     });
 
@@ -408,7 +408,7 @@ describe('Gateway', () => {
         const identityAddress = await identityFactory.getIdentity(aliceWallet.address);
         const identity = await ethers.getContractAt('Identity', identityAddress);
 
-        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), 1)).to.be.true;
+        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), KeyPurposes.MANAGEMENT)).to.be.true;
       });
     });
 
@@ -424,7 +424,7 @@ describe('Gateway', () => {
         const identityAddress = await identityFactory.getIdentity(aliceWallet.address);
         const identity = await ethers.getContractAt('Identity', identityAddress);
 
-        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), 1)).to.be.true;
+        expect(await identity.keyHasPurpose(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), KeyPurposes.MANAGEMENT)).to.be.true;
       });
     });
 
@@ -471,7 +471,7 @@ describe('Gateway', () => {
         const gateway = await ethers.deployContract('Gateway', [identityFactory.target, [carolWallet.address]]);
         await identityFactory.transferOwnership(gateway.target);
 
-        await expect(gateway.connect(aliceWallet).transferFactoryOwnership(bobWallet.address)).to.be.revertedWith('Ownable: caller is not the owner')
+        await expect(gateway.connect(aliceWallet).transferFactoryOwnership(bobWallet.address)).to.be.revertedWithCustomError(gateway, 'OwnableUnauthorizedAccount');
       });
     });
   });
@@ -502,7 +502,7 @@ describe('Gateway', () => {
           ),
         );
 
-        await expect(gateway.connect(aliceWallet).revokeSignature(signature)).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(gateway.connect(aliceWallet).revokeSignature(signature)).to.be.revertedWithCustomError(gateway, 'OwnableUnauthorizedAccount');
       });
     });
 
@@ -564,7 +564,7 @@ describe('Gateway', () => {
           ),
         );
 
-        await expect(gateway.connect(aliceWallet).approveSignature(signature)).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(gateway.connect(aliceWallet).approveSignature(signature)).to.be.revertedWithCustomError(gateway, 'OwnableUnauthorizedAccount');
       });
     });
 
@@ -660,7 +660,7 @@ describe('Gateway', () => {
         const gateway = await ethers.deployContract('Gateway', [identityFactory.target, [carolWallet.address]]);
         await identityFactory.transferOwnership(gateway.target);
 
-        await expect(gateway.connect(aliceWallet).approveSigner(bobWallet.address)).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(gateway.connect(aliceWallet).approveSigner(bobWallet.address)).to.be.revertedWithCustomError(gateway, 'OwnableUnauthorizedAccount');
       });
     });
 
@@ -731,7 +731,7 @@ describe('Gateway', () => {
         const gateway = await ethers.deployContract('Gateway', [identityFactory.target, [bobWallet.address]]);
         await identityFactory.transferOwnership(gateway.target);
 
-        await expect(gateway.connect(aliceWallet).revokeSigner(bobWallet.address)).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(gateway.connect(aliceWallet).revokeSigner(bobWallet.address)).to.be.revertedWithCustomError(gateway, 'OwnableUnauthorizedAccount');
       });
     });
 
@@ -788,7 +788,7 @@ describe('Gateway', () => {
 
         await expect(gateway.connect(aliceWallet).callFactory(
           identityFactory.interface.encodeFunctionData('addTokenFactory', [ethers.ZeroAddress]))
-        ).to.be.revertedWith('Ownable: caller is not the owner');
+        ).to.be.revertedWithCustomError(gateway, 'OwnableUnauthorizedAccount');
       });
     });
 

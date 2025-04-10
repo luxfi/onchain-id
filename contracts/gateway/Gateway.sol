@@ -3,14 +3,16 @@ pragma solidity 0.8.27;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IdFactory } from "../factory/IdFactory.sol";
 import { Errors } from "../libraries/Errors.sol";
 
 contract Gateway is Ownable {
     using ECDSA for bytes32;
+    using MessageHashUtils for bytes32;
 
-    IdFactory public idFactory;
+    IdFactory public immutable idFactory;
     mapping(address => bool) public approvedSigners;
     mapping(bytes => bool) public revokedSignatures;
 
@@ -23,11 +25,11 @@ contract Gateway is Ownable {
      *  @dev Constructor for the ONCHAINID Factory Gateway.
      *  @param idFactoryAddress the address of the factory to operate (the Gateway must be owner of the Factory).
      */
-    constructor(address idFactoryAddress, address[] memory signersToApprove) Ownable() {
+    constructor(address idFactoryAddress, address[] memory signersToApprove) Ownable(msg.sender) {
         require(idFactoryAddress != address(0), Errors.ZeroAddress());
         require(signersToApprove.length <= 10, Errors.TooManySigners());
 
-        for (uint i = 0; i < signersToApprove.length; i++) {
+        for (uint256 i = 0; i < signersToApprove.length; i++) {
             approvedSigners[signersToApprove[i]] = true;
         }
 
@@ -79,17 +81,16 @@ contract Gateway is Ownable {
         require(identityOwner != address(0), Errors.ZeroAddress());
         require(signatureExpiry == 0 || block.timestamp <= signatureExpiry, Errors.ExpiredSignature(signature));
 
-        address signer = ECDSA.recover(
-            keccak256(
-                abi.encode(
-                    "Authorize ONCHAINID deployment",
-                    identityOwner,
-                    salt,
-                    signatureExpiry
-                )
-            ).toEthSignedMessageHash(),
-            signature
-        );
+        address signer = keccak256(
+            abi.encode(
+                "Authorize ONCHAINID deployment",
+                identityOwner,
+                salt,
+                signatureExpiry
+            )
+        )
+        .toEthSignedMessageHash()
+        .recover(signature);
 
         require(approvedSigners[signer], Errors.UnapprovedSigner(signer));
         require(!revokedSignatures[signature], Errors.RevokedSignature(signature));
@@ -118,18 +119,17 @@ contract Gateway is Ownable {
         require(identityOwner != address(0), Errors.ZeroAddress());
         require(signatureExpiry == 0 || block.timestamp <= signatureExpiry, Errors.ExpiredSignature(signature));
 
-        address signer = ECDSA.recover(
-            keccak256(
+        address signer = keccak256(
                 abi.encode(
-                    "Authorize ONCHAINID deployment",
-                    identityOwner,
-                    salt,
-                    managementKeys,
-                    signatureExpiry
-                )
-            ).toEthSignedMessageHash(),
-            signature
-        );
+                "Authorize ONCHAINID deployment",
+                identityOwner,
+                salt,
+                managementKeys,
+                signatureExpiry
+            )
+        )
+        .toEthSignedMessageHash()
+        .recover(signature);
 
         require(approvedSigners[signer], Errors.UnapprovedSigner(signer));
         require(!revokedSignatures[signature], Errors.RevokedSignature(signature));

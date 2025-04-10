@@ -33,9 +33,6 @@ library Errors {
     /// @notice Reverts if the only linked wallet tries to unlink
     error OnlyLinkedWalletCanUnlink();
     
-    /// @notice Reverts if the account is not authorized to call the function
-    error OwnableUnauthorizedAccount(address account); // TODO: OZ
-    
     /// @notice Reverts if the salt is taken
     error SaltTaken(string salt);
     

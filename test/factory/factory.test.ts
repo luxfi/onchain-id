@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
-import { deployIdentityFixture } from "../fixtures";
+import { deployIdentityFixture, KeyPurposes, KeyTypes } from "../fixtures";
 
 describe('IdFactory', () => {
   it('should revert because authority is Zero address', async () => {
@@ -15,7 +15,7 @@ describe('IdFactory', () => {
   it('should revert because sender is not allowed to create identities', async () => {
     const {identityFactory, aliceWallet} = await loadFixture(deployIdentityFixture);
 
-    await expect(identityFactory.connect(aliceWallet).createIdentity(ethers.ZeroAddress, 'salt1')).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(identityFactory.connect(aliceWallet).createIdentity(ethers.ZeroAddress, 'salt1')).to.be.revertedWithCustomError(identityFactory, 'OwnableUnauthorizedAccount');
   });
 
   it('should revert because wallet of identity cannot be Zero address', async () => {
@@ -142,19 +142,19 @@ describe('IdFactory', () => {
 
         const identity = await ethers.getContractAt('Identity', await identityFactory.getIdentity(davidWallet.address));
 
-        await expect(tx).to.emit(identity, 'KeyAdded').withArgs(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), 1, 1);
-        await expect(identity.keyHasPurpose(
+        await expect(tx).to.emit(identity, 'KeyAdded').withArgs(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])), KeyPurposes.MANAGEMENT, KeyTypes.ECDSA);
+        expect(await identity.keyHasPurpose(
           ethers.AbiCoder.defaultAbiCoder().encode(['address'], [identityFactory.target]),
-          1
-        )).to.eventually.be.false;
-        await expect(identity.keyHasPurpose(
+          KeyPurposes.MANAGEMENT
+        )).to.be.false;
+        expect(await identity.keyHasPurpose(
           ethers.AbiCoder.defaultAbiCoder().encode(['address'], [davidWallet.address]),
-          1
-        )).to.eventually.be.false;
-        await expect(identity.keyHasPurpose(
+          KeyPurposes.MANAGEMENT
+        )).to.be.false;
+        expect(await identity.keyHasPurpose(
           ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address]),
-          1
-        )).to.eventually.be.false;
+          KeyPurposes.MANAGEMENT
+        )).to.be.false;
       });
     });
   });

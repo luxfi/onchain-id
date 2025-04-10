@@ -6,6 +6,8 @@ import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
 import { Version } from "./version/Version.sol";
 import { Storage } from "./storage/Storage.sol";
 import { Errors } from "./libraries/Errors.sol";
+import { KeyPurposes } from "./libraries/KeyPurposes.sol";
+import { KeyTypes } from "./libraries/KeyTypes.sol";
 
 /**
  * @dev Implementation of the `IERC734` "KeyHolder" and the `IERC735` "ClaimHolder" interfaces
@@ -19,7 +21,7 @@ contract Identity is Storage, IIdentity, Version {
      * @notice Prevent any direct calls to the implementation contract (marked by _canInteract = false).
      */
     modifier delegatedOnly() {
-        require(_canInteract == true, Errors.InteractingWithLibraryContractForbidden());
+        require(_canInteract, Errors.InteractingWithLibraryContractForbidden());
         _;
     }
 
@@ -27,7 +29,7 @@ contract Identity is Storage, IIdentity, Version {
      * @notice requires management key to call this function, or internal call
      */
     modifier onlyManager() {
-        require(msg.sender == address(this) || keyHasPurpose(keccak256(abi.encode(msg.sender)), 1)
+        require(msg.sender == address(this) || keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.MANAGEMENT)
         , Errors.SenderDoesNotHaveManagementKey());
         _;
     }
@@ -36,7 +38,7 @@ contract Identity is Storage, IIdentity, Version {
      * @notice requires claim key to call this function, or internal call
      */
     modifier onlyClaimKey() {
-        require(msg.sender == address(this) || keyHasPurpose(keccak256(abi.encode(msg.sender)), 3)
+        require(msg.sender == address(this) || keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.CLAIM_SIGNER)
         , Errors.SenderDoesNotHaveClaimSignerKey());
         _;
     }
@@ -92,10 +94,10 @@ contract Identity is Storage, IIdentity, Version {
 
         emit ExecutionRequested(_executionId, _to, _value, _data);
 
-        if (keyHasPurpose(keccak256(abi.encode(msg.sender)), 1)) {
+        if (keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.MANAGEMENT)) {
             approve(_executionId, true);
         }
-        else if (_to != address(this) && keyHasPurpose(keccak256(abi.encode(msg.sender)), 2)){
+        else if (_to != address(this) && keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)){
             approve(_executionId, true);
         }
 
@@ -188,7 +190,7 @@ contract Identity is Storage, IIdentity, Version {
     {
         if (_keys[_key].key == _key) {
             uint256[] memory _purposes = _keys[_key].purposes;
-            for (uint keyPurposeIndex = 0; keyPurposeIndex < _purposes.length; keyPurposeIndex++) {
+            for (uint256 keyPurposeIndex = 0; keyPurposeIndex < _purposes.length; keyPurposeIndex++) {
                 uint256 purpose = _purposes[keyPurposeIndex];
 
                 if (purpose == _purpose) {
@@ -228,15 +230,15 @@ contract Identity is Storage, IIdentity, Version {
         require(!_executions[_id].executed, Errors.RequestAlreadyExecuted());
 
         if(_executions[_id].to == address(this)) {
-            require(keyHasPurpose(keccak256(abi.encode(msg.sender)), 1), Errors.SenderDoesNotHaveManagementKey());
+            require(keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.MANAGEMENT), Errors.SenderDoesNotHaveManagementKey());
         }
         else {
-            require(keyHasPurpose(keccak256(abi.encode(msg.sender)), 2), Errors.SenderDoesNotHaveActionKey());
+            require(keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION), Errors.SenderDoesNotHaveActionKey());
         }
 
         emit Approved(_id, _approve);
 
-        if (_approve == true) {
+        if (_approve) {
             _executions[_id].approved = true;
 
             // solhint-disable-next-line avoid-low-level-calls
@@ -283,7 +285,7 @@ contract Identity is Storage, IIdentity, Version {
         require(_keys[_key].key == _key, Errors.KeyNotRegistered(_key));
         uint256[] memory _purposes = _keys[_key].purposes;
 
-        uint purposeIndex = 0;
+        uint256 purposeIndex = 0;
         while (_purposes[purposeIndex] != _purpose) {
             purposeIndex++;
 
@@ -296,8 +298,8 @@ contract Identity is Storage, IIdentity, Version {
         _keys[_key].purposes = _purposes;
         _keys[_key].purposes.pop();
 
-        uint keyIndex = 0;
-        uint arrayLength = _keysByPurpose[_purpose].length;
+        uint256 keyIndex = 0;
+        uint256 arrayLength = _keysByPurpose[_purpose].length;
 
         while (_keysByPurpose[_purpose][keyIndex] != _key) {
             keyIndex++;
@@ -310,7 +312,7 @@ contract Identity is Storage, IIdentity, Version {
         _keysByPurpose[_purpose][keyIndex] = _keysByPurpose[_purpose][arrayLength - 1];
         _keysByPurpose[_purpose].pop();
 
-        uint keyType = _keys[_key].keyType;
+        uint256 keyType = _keys[_key].keyType;
 
         if (_purposes.length - 1 == 0) {
             delete _keys[_key];
@@ -398,8 +400,8 @@ contract Identity is Storage, IIdentity, Version {
         uint256 _topic = _claims[_claimId].topic;
         require(_topic != 0, Errors.ClaimNotRegistered(_claimId));
 
-        uint claimIndex = 0;
-        uint arrayLength = _claimsByTopic[_topic].length;
+        uint256 claimIndex = 0;
+        uint256 arrayLength = _claimsByTopic[_topic].length;
         while (_claimsByTopic[_topic][claimIndex] != _claimId) {
             claimIndex++;
 
@@ -482,10 +484,10 @@ contract Identity is Storage, IIdentity, Version {
         Key memory key = _keys[_key];
         if (key.key == 0) return false;
 
-        for (uint keyPurposeIndex = 0; keyPurposeIndex < key.purposes.length; keyPurposeIndex++) {
+        for (uint256 keyPurposeIndex = 0; keyPurposeIndex < key.purposes.length; keyPurposeIndex++) {
             uint256 purpose = key.purposes[keyPurposeIndex];
 
-            if (purpose == 1 || purpose == _purpose) return true;
+            if (purpose == KeyPurposes.MANAGEMENT || purpose == _purpose) return true;
         }
 
         return false;
@@ -519,12 +521,8 @@ contract Identity is Storage, IIdentity, Version {
         bytes32 hashedAddr = keccak256(abi.encode(recovered));
 
         // Does the trusted identifier have they key which signed the user's claim?
-        //  && (isClaimRevoked(_claimId) == false)
-        if (keyHasPurpose(hashedAddr, 3)) {
-            return true;
-        }
-
-        return false;
+        //  && (isClaimRevoked(_claimId) == false) 
+        return keyHasPurpose(hashedAddr, KeyPurposes.CLAIM_SIGNER);
     }
 
     /**

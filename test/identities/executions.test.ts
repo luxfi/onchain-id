@@ -2,7 +2,7 @@ import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-import { deployIdentityFixture } from '../fixtures';
+import { deployIdentityFixture, KeyPurposes, KeyTypes } from '../fixtures';
 
 describe('Identity', () => {
   describe('Execute', () => {
@@ -40,8 +40,8 @@ describe('Identity', () => {
             value: 0,
             data: aliceIdentity.interface.encodeFunctionData('addKey', [
               aliceKeyHash,
-              3,
-              1,
+              KeyPurposes.CLAIM_SIGNER,
+              KeyTypes.ECDSA
             ]),
           };
 
@@ -50,7 +50,7 @@ describe('Identity', () => {
           await expect(tx).to.emit(aliceIdentity, 'Executed');
 
           const purposes = await aliceIdentity.getKeyPurposes(aliceKeyHash);
-          expect(purposes).to.deep.equal([1, 3]);
+          expect(purposes).to.deep.equal([KeyPurposes.MANAGEMENT, KeyPurposes.CLAIM_SIGNER]);
         });
       });
 
@@ -66,8 +66,8 @@ describe('Identity', () => {
               ethers.keccak256(
                 ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])
               ),
-              1,
-              1,
+              KeyPurposes.MANAGEMENT,
+              KeyTypes.ECDSA
             ]),
           };
 
@@ -99,8 +99,8 @@ describe('Identity', () => {
             value: 0n,
             data: aliceIdentity.interface.encodeFunctionData('addKey', [
               aliceKeyHash,
-              2,
-              1,
+              KeyPurposes.ACTION,
+              KeyTypes.ECDSA
             ]),
           };
 
@@ -116,7 +116,7 @@ describe('Identity', () => {
           const carolKeyHash = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(['address'], [carolWallet.address])
           );
-          await aliceIdentity.connect(aliceWallet).addKey(carolKeyHash, 2, 1);
+          await aliceIdentity.connect(aliceWallet).addKey(carolKeyHash, KeyPurposes.ACTION, KeyTypes.ECDSA);
 
           const aliceKeyHash = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])
@@ -127,8 +127,8 @@ describe('Identity', () => {
             value: 10n,
             data: aliceIdentity.interface.encodeFunctionData('addKey', [
               aliceKeyHash,
-              3,
-              1,
+              KeyPurposes.CLAIM_SIGNER,
+              KeyTypes.ECDSA
             ]),
           };
 
@@ -148,7 +148,7 @@ describe('Identity', () => {
           const carolKeyHash = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(['address'], [carolWallet.address])
           );
-          await aliceIdentity.connect(aliceWallet).addKey(carolKeyHash, 2, 1);
+          await aliceIdentity.connect(aliceWallet).addKey(carolKeyHash, KeyPurposes.ACTION, KeyTypes.ECDSA);
 
           const previousBalance = await ethers.provider.getBalance(davidWallet.address);
           const action = {

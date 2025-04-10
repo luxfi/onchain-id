@@ -1,5 +1,17 @@
 import { ethers } from 'hardhat';
 
+export enum KeyPurposes {
+  MANAGEMENT = 1,
+  ACTION = 2,
+  CLAIM_SIGNER = 3,
+  ENCRYPTION = 4
+}
+
+export enum KeyTypes {
+  ECDSA = 1,
+  RSA = 2
+} 
+
 export async function deployFactoryFixture() {
   const [deployerWallet, claimIssuerWallet, aliceWallet, bobWallet, carolWallet, davidWallet] =
     await ethers.getSigners();
@@ -44,18 +56,18 @@ export async function deployIdentityFixture() {
     ethers.keccak256(
       ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuerWallet.address])
     ),
-    3,
-    1,
+    KeyPurposes.CLAIM_SIGNER,
+    KeyTypes.ECDSA,
   );
 
   await identityFactory.connect(deployerWallet).createIdentity(aliceWallet.address, 'alice');
   const aliceIdentity = await ethers.getContractAt('Identity', await identityFactory.getIdentity(aliceWallet.address));
   await aliceIdentity.connect(aliceWallet).addKey(ethers.keccak256(
     ethers.AbiCoder.defaultAbiCoder().encode(['address'], [carolWallet.address])
-  ), 3, 1);
+  ), KeyPurposes.CLAIM_SIGNER, KeyTypes.ECDSA);
   await aliceIdentity.connect(aliceWallet).addKey(ethers.keccak256(
     ethers.AbiCoder.defaultAbiCoder().encode(['address'], [davidWallet.address])
-  ), 2, 1);
+  ), KeyPurposes.ACTION, KeyTypes.ECDSA);
   const aliceClaim666 = {
     id: '',
     identity: aliceIdentity.target,

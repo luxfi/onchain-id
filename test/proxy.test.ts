@@ -48,7 +48,7 @@ describe('Proxy', () => {
   it('should prevent updating when not owner', async () => {
     const {implementationAuthority, aliceWallet} = await loadFixture(deployIdentityFixture);
 
-    await expect(implementationAuthority.connect(aliceWallet).updateImplementation(ethers.ZeroAddress)).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(implementationAuthority.connect(aliceWallet).updateImplementation(ethers.ZeroAddress)).to.be.revertedWithCustomError(implementationAuthority, 'OwnableUnauthorizedAccount');
   });
 
   it('should update the implementation address', async () => {
