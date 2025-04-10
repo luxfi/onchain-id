@@ -9,6 +9,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 contract TopicIdMapping is Ownable {
     mapping(uint256 => string) public topicToName;
 
+    constructor() Ownable(msg.sender) {}
+
     /// @notice Saves the name for a given topic
     function setTopicName(
         uint256 _topic,
