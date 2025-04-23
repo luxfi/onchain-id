@@ -2,8 +2,10 @@
 pragma solidity 0.8.27;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { CREATE3 } from "solady/src/utils/CREATE3.sol";
 
-import { ClaimIssuer } from "../ClaimIssuer.sol";
+import { ClaimIssuer, Identity } from "../ClaimIssuer.sol";
 import { Errors } from "../libraries/Errors.sol";
 
 contract ClaimIssuerFactory is Ownable {
@@ -14,9 +16,16 @@ contract ClaimIssuerFactory is Ownable {
     /// @notice Event emitted when an address is blacklisted
     event Blacklisted(address indexed addr, bool blacklisted);
 
+    /// @notice Event emitted when the implementation is updated
+    event ImplementationUpdated(address indexed oldImplementation, address indexed newImplementation);
 
+    address public implementation;
     mapping(address => address) public deployedClaimIssuers;
     mapping(address => bool) public blacklistedAddresses;
+
+    constructor(address _implementation) Ownable() {
+        implementation = _implementation;
+    }
 
     /**
      * @dev Deploys a new ClaimIssuer contract using CREATE2
@@ -45,19 +54,21 @@ contract ClaimIssuerFactory is Ownable {
         require(!blacklistedAddresses[msg.sender], Errors.Blacklisted(msg.sender));
         require(deployedClaimIssuers[managementKey] == address(0), Errors.ClaimIssuerAlreadyDeployed(managementKey));
 
-        bytes32 salt = bytes32(uint256(uint160(managementKey)));
-        bytes memory initCode = abi.encodePacked(
-            type(ClaimIssuer).creationCode, 
-            abi.encode(managementKey)
+        address claimIssuer = CREATE3.deployDeterministic(
+            abi.encodePacked(
+                type(TransparentUpgradeableProxy).creationCode,
+                // TransparentUpgradeableProxy constructor arguments:
+                // - implementation address
+                // - admin address
+                // - data: call initialize(managementKey)
+                abi.encode(
+                    implementation, 
+                    owner(), 
+                    abi.encodeWithSelector(bytes4(keccak256("initialize(address)")), managementKey)
+                )
+            ), 
+            bytes32(uint256(uint160(managementKey)))
         );
-
-        address claimIssuer;
-        assembly {
-            claimIssuer := create2(0, add(initCode, 0x20), mload(initCode), salt)
-            if iszero(extcodesize(claimIssuer)) {
-                revert(0, 0)
-            }
-        }
 
         deployedClaimIssuers[managementKey] = claimIssuer;
         emit ClaimIssuerDeployed(managementKey, claimIssuer);
@@ -73,6 +84,18 @@ contract ClaimIssuerFactory is Ownable {
         require(addr != address(0), Errors.ZeroAddress());
         blacklistedAddresses[addr] = blacklisted;
         emit Blacklisted(addr, blacklisted);
+    }
+
+    /**
+     * @dev Updates the implementation address
+     * @param newImplementation The new implementation address
+     */
+    function updateImplementation(address newImplementation) external onlyOwner {
+        require(newImplementation != address(0), Errors.ZeroAddress());
+    
+        address oldImplementation = implementation;
+        implementation = newImplementation;
+        emit ImplementationUpdated(oldImplementation, newImplementation);
     }
 
 }

@@ -1,26 +1,43 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { ClaimIssuerFactory } from "../../typechain-types";
+import { ClaimIssuer, ClaimIssuerFactory } from "../../typechain-types";
 
-describe.only('ClaimIssuerFactory', () => {
+describe('ClaimIssuerFactory', () => {
     let claimIssuerFactory: ClaimIssuerFactory;
+    let claimIssuerImplementation: ClaimIssuer;
     let deployer: SignerWithAddress;
     let alice: SignerWithAddress;
-
+    
     beforeEach(async () => {
         [deployer, alice] = await ethers.getSigners();
 
+        const ClaimIssuerContract = await ethers.getContractFactory('ClaimIssuer');
+        claimIssuerImplementation = await ClaimIssuerContract.deploy(deployer.address);
+
         const ClaimIssuerFactoryContract = await ethers.getContractFactory('ClaimIssuerFactory');
-        claimIssuerFactory = await ClaimIssuerFactoryContract.deploy();
+        claimIssuerFactory = await ClaimIssuerFactoryContract.deploy(claimIssuerImplementation.target);
     });
 
-    it('should deploy a new ClaimIssuer contract', async () => {
+    it('should deploy a new ClaimIssuer contract to a predetermined address', async () => {
         const tx = await claimIssuerFactory.connect(deployer).deployClaimIssuer();
         await tx.wait();
         
         const claimIssuer = await claimIssuerFactory.deployedClaimIssuers(deployer.address);
         await expect(tx).to.emit(claimIssuerFactory, 'ClaimIssuerDeployed').withArgs(deployer.address, claimIssuer);
+
+        // Calculate the expected address
+        const proxy = ethers.getCreate2Address(
+            claimIssuerFactory.target, 
+            ethers.zeroPadValue(deployer.address, 32),
+            ethers.hexlify("0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f")
+        );
+
+        const expectedAddress = "0x" + ethers.keccak256(
+            ethers.encodeRlp([proxy, "0x01"])
+        ).slice(-40);
+
+        expect(claimIssuer.toLowerCase()).to.equal(expectedAddress.toLowerCase());
     });
 
     it ('should revert if already deployed with the same management key', async () => {
@@ -66,4 +83,13 @@ describe.only('ClaimIssuerFactory', () => {
         await expect(claimIssuerFactory.connect(alice).deployClaimIssuerOnBehalf(alice.address)).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
+    it('should revert if updateImplementation is called by a non-owner', async () => {
+        await expect(claimIssuerFactory.connect(alice).updateImplementation(alice.address)).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('should emit an event when the implementation is updated', async () => {
+        const tx = await claimIssuerFactory.connect(deployer).updateImplementation(alice.address);
+        
+        await expect(tx).to.emit(claimIssuerFactory, 'ImplementationUpdated').withArgs(claimIssuerImplementation.target, alice.address);
+    });
 });
