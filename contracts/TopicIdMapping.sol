@@ -65,6 +65,6 @@ contract TopicIdMapping is
     }
 
     function _authorizeUpgrade(
-        address newImplementation
+        address _newImplementation
     ) internal override onlyOwner {}
 }
