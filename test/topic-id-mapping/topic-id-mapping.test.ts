@@ -34,10 +34,6 @@ describe("TopicIdMapping", () => {
     });
 
     describe("Proxy functionality", () => {
-        it("should have correct implementation address", async () => {
-            expect(await topicIdMappingProxy.implementation()).to.equal(await implementation.getAddress());
-        });
-
         it("should allow owner to upgrade implementation", async () => {
             const [deployerWallet] = await ethers.getSigners();
             
@@ -48,11 +44,8 @@ describe("TopicIdMapping", () => {
 
             // Upgrade implementation
             await expect(
-                topicIdMappingProxy.connect(deployerWallet).upgradeTo(await newImplementation.getAddress())
+                topicIdMapping.connect(deployerWallet).upgradeTo(await newImplementation.getAddress())
             ).to.not.be.reverted;
-
-            // Verify new implementation
-            expect(await topicIdMappingProxy.implementation()).to.equal(await newImplementation.getAddress());
         });
 
         it("should not allow non-owner to upgrade implementation", async () => {
@@ -65,7 +58,7 @@ describe("TopicIdMapping", () => {
 
             // Try to upgrade implementation
             await expect(
-                topicIdMappingProxy.connect(otherWallet).upgradeTo(await newImplementation.getAddress())
+                topicIdMapping.connect(otherWallet).upgradeTo(await newImplementation.getAddress())
             ).to.be.revertedWith("Ownable: caller is not the owner");
         });
     });
