@@ -11,9 +11,7 @@ describe("TopicIdMapping", () => {
     let topicIdMapping: any;
     let topicIdMappingProxy: any;
 
-    beforeEach(async () => {
-        const [deployerWallet] = await ethers.getSigners();
-        
+    beforeEach(async () => {        
         // Deploy implementation
         const TopicIdMapping = await ethers.getContractFactory("TopicIdMapping");
         implementation = await TopicIdMapping.deploy();

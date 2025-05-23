@@ -5,7 +5,7 @@ import {ITopicIdMapping} from "./interface/ITopicIdMapping.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-/// @notice This contract is used to map a claim topic id to its name
+/// @notice This contract is used to map a claim topic id to its name and format
 /** @dev this contract stores and returns the names for different topics
  */
 contract TopicIdMapping is
