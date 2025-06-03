@@ -1,20 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
-import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
-import { Identity, IIdentity } from "./Identity.sol";
-import { Errors } from "./libraries/Errors.sol";
+import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
+import {Identity, IIdentity} from "./Identity.sol";
+import {Errors} from "./libraries/Errors.sol";
 
 contract ClaimIssuer is IClaimIssuer, Identity {
-    mapping (bytes => bool) public revokedClaims;
+    mapping(bytes => bool) public revokedClaims;
 
     // solhint-disable-next-line no-empty-blocks
-    constructor(address initialManagementKey) Identity(initialManagementKey, false) {}
+    constructor(
+        address initialManagementKey
+    ) Identity(initialManagementKey, false) {}
 
     /**
      *  @dev See {IClaimIssuer-revokeClaimBySignature}.
      */
-    function revokeClaimBySignature(bytes calldata signature) external override delegatedOnly onlyManager {
+    function revokeClaimBySignature(
+        bytes calldata signature
+    ) external override delegatedOnly onlyManager {
         require(!revokedClaims[signature], Errors.ClaimAlreadyRevoked());
 
         revokedClaims[signature] = true;
@@ -25,19 +29,60 @@ contract ClaimIssuer is IClaimIssuer, Identity {
     /**
      *  @dev See {IClaimIssuer-revokeClaim}.
      */
-    function revokeClaim(bytes32 _claimId, address _identity) external override delegatedOnly onlyManager returns(bool) {
+    function revokeClaim(
+        bytes32 _claimId,
+        address _identity
+    ) external override delegatedOnly onlyManager returns (bool) {
         uint256 foundClaimTopic;
         uint256 scheme;
         address issuer;
         bytes memory sig;
         bytes memory data;
 
-        ( foundClaimTopic, scheme, issuer, sig, data, ) = Identity(_identity).getClaim(_claimId);
+        (foundClaimTopic, scheme, issuer, sig, data, ) = Identity(_identity)
+            .getClaim(_claimId);
 
         require(!revokedClaims[sig], Errors.ClaimAlreadyRevoked());
 
         revokedClaims[sig] = true;
         emit ClaimRevoked(sig);
+        return true;
+    }
+
+    /**
+     *  @dev See {IClaimIssuer-addClaimTo}.
+     */
+    function addClaimTo(
+        uint256 _topic,
+        uint256 _scheme,
+        address _issuer,
+        bytes memory _signature,
+        bytes memory _data,
+        string memory _uri,
+        IIdentity _identity
+    ) external delegatedOnly onlyManager returns (bool) {
+        // Prepare the data for the addClaim function
+        bytes memory addClaimData = abi.encodeWithSelector(
+            _identity.addClaim.selector,
+            _topic,
+            _scheme,
+            _issuer,
+            _signature,
+            _data,
+            _uri
+        );
+
+        // Execute addClaim through the execute function
+        (bool success, ) = address(_identity).call(
+            abi.encodeWithSelector(
+                _identity.execute.selector,
+                address(_identity),  // target is the identity itself
+                0,                   // no value
+                addClaimData         // data to execute
+            )
+        );
+        require(success, "ClaimIssuer: execute failed");
+
         return true;
     }
 
@@ -48,12 +93,13 @@ contract ClaimIssuer is IClaimIssuer, Identity {
         IIdentity _identity,
         uint256 claimTopic,
         bytes memory sig,
-        bytes memory data)
-    public override(Identity, IClaimIssuer) view returns (bool claimValid)
-    {
+        bytes memory data
+    ) public view override(Identity, IClaimIssuer) returns (bool claimValid) {
         bytes32 dataHash = keccak256(abi.encode(_identity, claimTopic, data));
         // Use abi.encodePacked to concatenate the message prefix and the message to sign.
-        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
+        bytes32 prefixedHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)
+        );
 
         // Recover address of data signer
         address recovered = getRecoveredAddress(sig, prefixedHash);
@@ -73,7 +119,9 @@ contract ClaimIssuer is IClaimIssuer, Identity {
     /**
      *  @dev See {IClaimIssuer-isClaimRevoked}.
      */
-    function isClaimRevoked(bytes memory _sig) public override view returns (bool) {
+    function isClaimRevoked(
+        bytes memory _sig
+    ) public view override returns (bool) {
         if (revokedClaims[_sig]) {
             return true;
         }

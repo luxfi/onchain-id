@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
+import "hardhat/console.sol";
 import { IIdentity } from "./interface/IIdentity.sol";
 import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
 import { Version } from "./version/Version.sol";
@@ -91,7 +92,11 @@ contract Identity is Storage, IIdentity, Version {
         _executionNonce++;
 
         emit ExecutionRequested(_executionId, _to, _value, _data);
-
+        console.log("executionId", _executionId);
+        console.log("msg.sender", msg.sender);
+        console.log("keyHasPurpose", keyHasPurpose(keccak256(abi.encode(msg.sender)), 1));
+        console.log("keyHasPurpose", keyHasPurpose(keccak256(abi.encode(msg.sender)), 2));
+        console.log("keyHasPurpose", keyHasPurpose(keccak256(abi.encode(msg.sender)), 3));
         if (keyHasPurpose(keccak256(abi.encode(msg.sender)), 1)) {
             approve(_executionId, true);
         }
@@ -354,6 +359,8 @@ contract Identity is Storage, IIdentity, Version {
     override
     returns (bytes32 claimRequestId)
     {
+        console.log("issuer", _issuer);
+        console.log("this address", address(this));
         if (_issuer != address(this)) {
             require(
                 IClaimIssuer(_issuer)
@@ -515,6 +522,7 @@ contract Identity is Storage, IIdentity, Version {
         bytes memory data)
     public override virtual view returns (bool claimValid)
     {
+        console.log("inside isClaimValid");
         bytes32 dataHash = keccak256(abi.encode(_identity, claimTopic, data));
         // Use abi.encodePacked to concatenate the message prefix and the message to sign.
         bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
@@ -524,6 +532,9 @@ contract Identity is Storage, IIdentity, Version {
 
         // Take hash of recovered address
         bytes32 hashedAddr = keccak256(abi.encode(recovered));
+
+        console.log("recovered", recovered);
+        console.log("keyHasPurpose", keyHasPurpose(hashedAddr, 3));
 
         // Does the trusted identifier have they key which signed the user's claim?
         //  && (isClaimRevoked(_claimId) == false)

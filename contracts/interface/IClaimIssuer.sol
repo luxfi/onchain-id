@@ -4,7 +4,6 @@ pragma solidity ^0.8.27;
 import "./IIdentity.sol";
 
 interface IClaimIssuer is IIdentity {
-
     /**
      * @dev Emitted when a claim is revoked.
      *
@@ -19,13 +18,37 @@ interface IClaimIssuer is IIdentity {
      * @param _identity the address of the identity contract
      * @return isRevoked true when the claim is revoked
      */
-    function revokeClaim(bytes32 _claimId, address _identity) external returns(bool);
+    function revokeClaim(
+        bytes32 _claimId,
+        address _identity
+    ) external returns (bool);
 
     /**
      * @dev Revoke a claim previously issued, the claim is no longer considered as valid after revocation.
      * @param signature the signature of the claim
      */
     function revokeClaimBySignature(bytes calldata signature) external;
+
+    /**
+     * @dev Add a claim to the identity contract.
+     * @param _topic the topic of the claim
+     * @param _scheme the scheme of the claim
+     * @param _issuer the issuer of the claim
+     * @param _signature the signature of the claim
+     * @param _data the data of the claim
+     * @param _uri the uri of the claim
+     * @param _identity the identity contract to add the claim to
+     * @return success true if the claim was added successfully
+     */
+    function addClaimTo(
+        uint256 _topic,
+        uint256 _scheme,
+        address _issuer,
+        bytes calldata _signature,
+        bytes calldata _data,
+        string calldata _uri,
+        IIdentity _identity
+    ) external returns (bool);
 
     /**
      * @dev Returns revocation status of a claim.
