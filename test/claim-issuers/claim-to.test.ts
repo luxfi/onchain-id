@@ -5,24 +5,6 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { deployIdentityFixture } from "../fixtures";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
-interface IClaimIssuer extends BaseContract {
-  addClaimTo(
-    topic: number,
-    scheme: number,
-    issuer: string,
-    signature: string,
-    data: string,
-    uri: string,
-    identity: string,
-  ): Promise<any>;
-  addKey(key: string, purpose: number, keyType: number): Promise<any>;
-  isClaimValid(
-    identity: string,
-    topic: number,
-    signature: string,
-    data: string,
-  ): Promise<boolean>;
-}
 
 interface IIdentity extends BaseContract {
   getClaim(claimId: string): Promise<{
@@ -38,7 +20,6 @@ interface IIdentity extends BaseContract {
 }
 
 describe("ClaimIssuer", function () {
-  let claimIssuer: IClaimIssuer;
   let identity: IIdentity;
   let owner: HardhatEthersSigner;
   let other: HardhatEthersSigner;
@@ -55,11 +36,7 @@ describe("ClaimIssuer", function () {
     )) as unknown as IIdentity;
     await identity.waitForDeployment();
 
-    // Deploy ClaimIssuer contract
-    const ClaimIssuer: ContractFactory =
-      await ethers.getContractFactory("ClaimIssuer");
-
-    const { claimIssuer, aliceWallet, aliceClaim666 } = await loadFixture(
+    const { claimIssuer, aliceWallet } = await loadFixture(
       deployIdentityFixture,
     );
 
