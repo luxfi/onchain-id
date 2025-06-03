@@ -61,7 +61,6 @@ contract ClaimIssuer is IClaimIssuer, Identity {
         string memory _uri,
         IIdentity _identity
     ) external delegatedOnly onlyManager returns (bool) {
-        // Prepare the data for the addClaim function
         bytes memory addClaimData = abi.encodeWithSelector(
             _identity.addClaim.selector,
             _topic,
@@ -72,16 +71,15 @@ contract ClaimIssuer is IClaimIssuer, Identity {
             _uri
         );
 
-        // Execute addClaim through the execute function
         (bool success, ) = address(_identity).call(
             abi.encodeWithSelector(
                 _identity.execute.selector,
-                address(_identity),  // target is the identity itself
-                0,                   // no value
-                addClaimData         // data to execute
+                address(_identity),
+                0,
+                addClaimData
             )
         );
-        require(success, "ClaimIssuer: execute failed");
+        require(success, Errors.CallFailed());
 
         return true;
     }
