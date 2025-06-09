@@ -89,13 +89,13 @@ describe('ClaimIssuer - Reference (with revoke)', () => {
   describe('upgrade', () => {
     async function deployUpgradeFixture() {
       const { claimIssuer, claimIssuerWallet, aliceWallet } = await loadFixture(deployIdentityFixture);
-      
+
       const ClaimIssuerFactory = await ethers.getContractFactory('ClaimIssuerFactory');
       const claimIssuerFactory = await ClaimIssuerFactory.deploy(claimIssuer.target);
 
       const tx = await claimIssuerFactory.connect(claimIssuerWallet).deployClaimIssuer();
       await tx.wait();
-      const proxyAddress = await claimIssuerFactory.deployedClaimIssuers(claimIssuerWallet.address);
+      const proxyAddress = await claimIssuerFactory.claimIssuer(claimIssuerWallet.address);
       const proxy = await ethers.getContractAt('ITransparentUpgradeableProxy', proxyAddress);
 
       return { claimIssuer, claimIssuerWallet, aliceWallet, proxy };
@@ -109,7 +109,7 @@ describe('ClaimIssuer - Reference (with revoke)', () => {
 
     it('should upgrade the implementation', async () => {
       const { proxy, claimIssuerWallet } = await loadFixture(deployUpgradeFixture);
-      
+
       const ClaimIssuer = await ethers.getContractFactory('ClaimIssuer');
       const newClaimIssuer = await ClaimIssuer.connect(claimIssuerWallet).deploy(claimIssuerWallet.address);
 

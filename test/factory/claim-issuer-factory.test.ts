@@ -8,7 +8,7 @@ describe('ClaimIssuerFactory', () => {
     let claimIssuerImplementation: ClaimIssuer;
     let deployer: SignerWithAddress;
     let alice: SignerWithAddress;
-    
+
     beforeEach(async () => {
         [deployer, alice] = await ethers.getSigners();
 
@@ -22,13 +22,13 @@ describe('ClaimIssuerFactory', () => {
     it('should deploy a new ClaimIssuer contract to a predetermined address', async () => {
         const tx = await claimIssuerFactory.connect(deployer).deployClaimIssuer();
         await tx.wait();
-        
-        const claimIssuer = await claimIssuerFactory.deployedClaimIssuers(deployer.address);
+
+        const claimIssuer = await claimIssuerFactory.claimIssuer(deployer.address);
         await expect(tx).to.emit(claimIssuerFactory, 'ClaimIssuerDeployed').withArgs(deployer.address, claimIssuer);
 
         // Calculate the expected address
         const proxy = ethers.getCreate2Address(
-            claimIssuerFactory.target, 
+            claimIssuerFactory.target,
             ethers.zeroPadValue(deployer.address, 32),
             ethers.hexlify("0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f")
         );
@@ -57,12 +57,12 @@ describe('ClaimIssuerFactory', () => {
     it ('should revert if blacklistAddress is called with zero address', async () => {
         await expect(claimIssuerFactory.connect(deployer).blacklistAddress(ethers.ZeroAddress, true)).to.be.revertedWithCustomError(claimIssuerFactory, 'ZeroAddress');
     });
-    
+
     it ('should emit an event when an address is blacklisted', async () => {
         const tx = await claimIssuerFactory.connect(deployer).blacklistAddress(alice.address, true);
         await expect(tx).to.emit(claimIssuerFactory, 'Blacklisted').withArgs(alice.address, true);
 
-        expect(await claimIssuerFactory.blacklistedAddresses(alice.address)).to.equal(true);
+        expect(await claimIssuerFactory.isBlacklisted(alice.address)).to.equal(true);
     });
 
     it ('should emit an event when an address is unblacklisted', async () => {
@@ -70,7 +70,7 @@ describe('ClaimIssuerFactory', () => {
 
         const tx = await claimIssuerFactory.connect(deployer).blacklistAddress(alice.address, false);
         await expect(tx).to.emit(claimIssuerFactory, 'Blacklisted').withArgs(alice.address, false);
-        expect(await claimIssuerFactory.blacklistedAddresses(alice.address)).to.equal(false);
+        expect(await claimIssuerFactory.isBlacklisted(alice.address)).to.equal(false);
     });
 
     it('should revert if deploy from a blacklisted address', async () => {
@@ -78,7 +78,7 @@ describe('ClaimIssuerFactory', () => {
 
         await expect(claimIssuerFactory.connect(alice).deployClaimIssuer()).to.be.revertedWithCustomError(claimIssuerFactory, 'Blacklisted');
     });
-    
+
     it ('should revert if deployClaimIssuerOnBehalf is called by a non-owner', async () => {
         await expect(claimIssuerFactory.connect(alice).deployClaimIssuerOnBehalf(alice.address)).to.be.revertedWith('Ownable: caller is not the owner');
     });
@@ -89,7 +89,7 @@ describe('ClaimIssuerFactory', () => {
 
     it('should emit an event when the implementation is updated', async () => {
         const tx = await claimIssuerFactory.connect(deployer).updateImplementation(alice.address);
-        
+
         await expect(tx).to.emit(claimIssuerFactory, 'ImplementationUpdated').withArgs(claimIssuerImplementation.target, alice.address);
     });
 });
