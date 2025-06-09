@@ -9,7 +9,11 @@ import { ClaimIssuer, Identity } from "../ClaimIssuer.sol";
 import { Errors } from "../libraries/Errors.sol";
 
 contract ClaimIssuerFactory is Ownable {
-    
+
+    address private _implementation;
+    mapping(address => address) private _deployedClaimIssuers;
+    mapping(address => bool) private _blacklistedAddresses;
+
     /// @notice Event emitted when a new ClaimIssuer is deployed
     event ClaimIssuerDeployed(address indexed managementKey, address indexed claimIssuer);
 
@@ -19,12 +23,8 @@ contract ClaimIssuerFactory is Ownable {
     /// @notice Event emitted when the implementation is updated
     event ImplementationUpdated(address indexed oldImplementation, address indexed newImplementation);
 
-    address public implementation;
-    mapping(address => address) public deployedClaimIssuers;
-    mapping(address => bool) public blacklistedAddresses;
-
-    constructor(address _implementation) Ownable() {
-        implementation = _implementation;
+    constructor(address implementation) Ownable() {
+        _implementation = implementation;
     }
 
     /**
@@ -43,38 +43,6 @@ contract ClaimIssuerFactory is Ownable {
     function deployClaimIssuerOnBehalf(address managementKey) external onlyOwner returns (address) {
         return _deployClaimIssuer(managementKey);
     }
-    
-    /**
-     * @dev Deploys a new ClaimIssuer contract using CREATE2
-     * @param managementKey The initial management key for the ClaimIssuer
-     * @return The address of the deployed ClaimIssuer contract
-     */
-    function _deployClaimIssuer(address managementKey) internal returns (address) {
-        require(managementKey != address(0), Errors.ZeroAddress());
-        require(!blacklistedAddresses[msg.sender], Errors.Blacklisted(msg.sender));
-        require(deployedClaimIssuers[managementKey] == address(0), Errors.ClaimIssuerAlreadyDeployed(managementKey));
-
-        address claimIssuer = CREATE3.deployDeterministic(
-            abi.encodePacked(
-                type(TransparentUpgradeableProxy).creationCode,
-                // TransparentUpgradeableProxy constructor arguments:
-                // - implementation address
-                // - admin address
-                // - data: call initialize(managementKey)
-                abi.encode(
-                    implementation, 
-                    owner(), 
-                    abi.encodeWithSelector(bytes4(keccak256("initialize(address)")), managementKey)
-                )
-            ), 
-            bytes32(uint256(uint160(managementKey)))
-        );
-
-        deployedClaimIssuers[managementKey] = claimIssuer;
-        emit ClaimIssuerDeployed(managementKey, claimIssuer);
-
-        return claimIssuer;
-    }
 
     /**
      * @dev Blacklists an address from deploying ClaimIssuers
@@ -82,7 +50,7 @@ contract ClaimIssuerFactory is Ownable {
      */
     function blacklistAddress(address addr, bool blacklisted) external onlyOwner {
         require(addr != address(0), Errors.ZeroAddress());
-        blacklistedAddresses[addr] = blacklisted;
+        _blacklistedAddresses[addr] = blacklisted;
         emit Blacklisted(addr, blacklisted);
     }
 
@@ -92,10 +60,66 @@ contract ClaimIssuerFactory is Ownable {
      */
     function updateImplementation(address newImplementation) external onlyOwner {
         require(newImplementation != address(0), Errors.ZeroAddress());
-    
-        address oldImplementation = implementation;
-        implementation = newImplementation;
+
+        address oldImplementation = _implementation;
+        _implementation = newImplementation;
         emit ImplementationUpdated(oldImplementation, newImplementation);
+    }
+
+    /**
+     * @dev Getter for the current implementation contract used
+     * @return The address of the implementation contract
+     */
+    function implementation() external view returns(address) {
+        return _implementation;
+    }
+
+    /**
+     * @dev returns the blacklist status of an address
+     * @return true if blacklisted, false if not
+     */
+    function isBlacklisted(address account) external view returns(bool) {
+        return _blacklistedAddresses[account];
+    }
+
+    /**
+     * @dev Getter for the ClaimIssuer Proxy address linked to an account address
+     * @return The address of the corresponding ClaimIssuer Proxy
+     */
+    function claimIssuer(address account) external view returns(address) {
+        return _deployedClaimIssuers[account];
+    }
+
+    /**
+     * @dev Deploys a new ClaimIssuer contract using CREATE2
+     * @param managementKey The initial management key for the ClaimIssuer
+     * @return The address of the deployed ClaimIssuer contract
+     */
+    function _deployClaimIssuer(address managementKey) internal returns (address) {
+        require(managementKey != address(0), Errors.ZeroAddress());
+        require(!_blacklistedAddresses[msg.sender], Errors.Blacklisted(msg.sender));
+        require(_deployedClaimIssuers[managementKey] == address(0), Errors.ClaimIssuerAlreadyDeployed(managementKey));
+
+        address claimIssuer = CREATE3.deployDeterministic(
+            abi.encodePacked(
+                type(TransparentUpgradeableProxy).creationCode,
+                // TransparentUpgradeableProxy constructor arguments:
+                // - implementation address
+                // - admin address
+                // - data: call initialize(managementKey)
+                abi.encode(
+                    _implementation,
+                    owner(),
+                    abi.encodeWithSelector(bytes4(keccak256("initialize(address)")), managementKey)
+                )
+            ),
+            bytes32(uint256(uint160(managementKey)))
+        );
+
+        _deployedClaimIssuers[managementKey] = claimIssuer;
+        emit ClaimIssuerDeployed(managementKey, claimIssuer);
+
+        return claimIssuer;
     }
 
 }
