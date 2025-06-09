@@ -95,7 +95,8 @@ contract Verifier is Ownable {
      */
     function addTrustedIssuer(IClaimIssuer trustedIssuer, uint256[] calldata claimTopics) public onlyOwner {
         require(address(trustedIssuer) != address(0), Errors.ZeroAddress());
-        require(trustedIssuerClaimTopics[address(trustedIssuer)].length == 0, Errors.TrustedIssuerAlreadyExists(address(trustedIssuer)));
+        require(trustedIssuerClaimTopics[address(trustedIssuer)].length == 0,
+            Errors.TrustedIssuerAlreadyExists(address(trustedIssuer)));
         require(claimTopics.length > 0, Errors.TrustedClaimTopicsCannotBeEmpty());
         require(claimTopics.length <= 15, Errors.MaxClaimTopicsExceeded());
         require(trustedIssuers.length < 50, Errors.MaxTrustedIssuersExceeded());

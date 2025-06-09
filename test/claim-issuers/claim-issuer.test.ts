@@ -85,4 +85,36 @@ describe('ClaimIssuer - Reference (with revoke)', () => {
       expect(await claimIssuer.getRecoveredAddress(aliceClaim666.signature + "00", ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [aliceClaim666.identity, aliceClaim666.topic, aliceClaim666.data]))))).to.be.equal(ethers.ZeroAddress);
     });
   });
+
+  describe('upgrade', () => {
+    async function deployUpgradeFixture() {
+      const { claimIssuer, claimIssuerWallet, aliceWallet } = await loadFixture(deployIdentityFixture);
+
+      const ClaimIssuerFactory = await ethers.getContractFactory('ClaimIssuerFactory');
+      const claimIssuerFactory = await ClaimIssuerFactory.deploy(claimIssuer.target);
+
+      const tx = await claimIssuerFactory.connect(claimIssuerWallet).deployClaimIssuer();
+      await tx.wait();
+      const proxyAddress = await claimIssuerFactory.claimIssuer(claimIssuerWallet.address);
+      const proxy = await ethers.getContractAt('ITransparentUpgradeableProxy', proxyAddress);
+
+      return { claimIssuer, claimIssuerWallet, aliceWallet, proxy };
+    }
+
+    it('should revert if not owner', async () => {
+      const { proxy, aliceWallet, claimIssuer } = await loadFixture(deployUpgradeFixture);
+
+      await expect(proxy.connect(aliceWallet).upgradeTo(claimIssuer.target)).to.be.reverted;
+    });
+
+    it('should upgrade the implementation', async () => {
+      const { proxy, claimIssuerWallet } = await loadFixture(deployUpgradeFixture);
+
+      const ClaimIssuer = await ethers.getContractFactory('ClaimIssuer');
+      const newClaimIssuer = await ClaimIssuer.connect(claimIssuerWallet).deploy(claimIssuerWallet.address);
+
+      await proxy.upgradeTo(newClaimIssuer.target);
+      expect(await proxy.implementation()).to.be.equal(newClaimIssuer.target);
+    });
+  });
 });

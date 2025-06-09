@@ -149,4 +149,12 @@ library Errors {
     /// @notice The claim is invalid.
     error InvalidClaim();
 
+    /* ----- ClaimIssuerFactory ----- */
+
+    /// @notice The claim issuer already exists.
+    error ClaimIssuerAlreadyDeployed(address managementKey);    
+
+    /// @notice The address is blacklisted.
+    error Blacklisted(address addr);
+    
 }
