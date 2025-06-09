@@ -51,7 +51,7 @@ describe('ClaimIssuerFactory', () => {
     });
 
     it ('should revert if blacklistAddress is not called by the owner', async () => {
-        await expect(claimIssuerFactory.connect(alice).blacklistAddress(deployer.address, true)).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(claimIssuerFactory.connect(alice).blacklistAddress(deployer.address, true)).to.be.revertedWithCustomError(claimIssuerFactory, 'OwnableUnauthorizedAccount');
     });
 
     it ('should revert if blacklistAddress is called with zero address', async () => {
@@ -80,11 +80,11 @@ describe('ClaimIssuerFactory', () => {
     });
 
     it ('should revert if deployClaimIssuerOnBehalf is called by a non-owner', async () => {
-        await expect(claimIssuerFactory.connect(alice).deployClaimIssuerOnBehalf(alice.address)).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(claimIssuerFactory.connect(alice).deployClaimIssuerOnBehalf(alice.address)).to.be.revertedWithCustomError(claimIssuerFactory, 'OwnableUnauthorizedAccount');
     });
 
     it('should revert if updateImplementation is called by a non-owner', async () => {
-        await expect(claimIssuerFactory.connect(alice).updateImplementation(alice.address)).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(claimIssuerFactory.connect(alice).updateImplementation(alice.address)).to.be.revertedWithCustomError(claimIssuerFactory, 'OwnableUnauthorizedAccount');
     });
 
     it('should emit an event when the implementation is updated', async () => {

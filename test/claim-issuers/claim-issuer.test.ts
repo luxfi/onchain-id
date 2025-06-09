@@ -104,7 +104,7 @@ describe('ClaimIssuer - Reference (with revoke)', () => {
     it('should revert if not owner', async () => {
       const { proxy, aliceWallet, claimIssuer } = await loadFixture(deployUpgradeFixture);
 
-      await expect(proxy.connect(aliceWallet).upgradeTo(claimIssuer.target)).to.be.reverted;
+      await expect(proxy.connect(aliceWallet).upgradeToAndCall(claimIssuer.target, "0x")).to.be.reverted;
     });
 
     it('should upgrade the implementation', async () => {
@@ -113,7 +113,7 @@ describe('ClaimIssuer - Reference (with revoke)', () => {
       const ClaimIssuer = await ethers.getContractFactory('ClaimIssuer');
       const newClaimIssuer = await ClaimIssuer.connect(claimIssuerWallet).deploy(claimIssuerWallet.address);
 
-      await proxy.upgradeTo(newClaimIssuer.target);
+      await proxy.connect(claimIssuerWallet).upgradeToAndCall(newClaimIssuer.target, "0x");
       expect(await proxy.implementation()).to.be.equal(newClaimIssuer.target);
     });
   });
