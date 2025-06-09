@@ -166,4 +166,12 @@ library Errors {
     /// @notice Topic is not registered yet.
     error TopicNotFound(uint256 topic);
 
+    /* ----- ClaimIssuerFactory ----- */
+
+    /// @notice The claim issuer already exists.
+    error ClaimIssuerAlreadyDeployed(address managementKey);    
+
+    /// @notice The address is blacklisted.
+    error Blacklisted(address addr);
+    
 }
