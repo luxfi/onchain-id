@@ -357,7 +357,14 @@ contract Identity is Storage, IIdentity, Version {
     returns (bytes32 claimRequestId)
     {
         if (_issuer != address(this)) {
-            require(IClaimIssuer(_issuer).isClaimValid(IIdentity(address(this)), _topic, _signature, _data), Errors.InvalidClaim());
+            require(
+                IClaimIssuer(_issuer)
+                .isClaimValid(IIdentity(
+                    address(this)),
+                    _topic,
+                    _signature,
+                    _data),
+                Errors.InvalidClaim());
         }
 
         bytes32 claimId = keccak256(abi.encode(_issuer, _topic));
