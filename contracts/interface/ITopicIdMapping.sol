@@ -15,9 +15,9 @@ interface ITopicIdMapping {
         string name;
     }
 
-    event TopicAdded(uint256 indexed topic, uint256 format);
-    event TopicRemoved(uint256 indexed topic, uint256 format);
-    event TopicChanged(uint256 indexed topic, uint256 format);
+    event TopicAdded(uint256 indexed topic, uint256 format, string name);
+    event TopicRemoved(uint256 indexed topic);
+    event TopicChanged(uint256 indexed topic, uint256 format, string name);
 
     function addTopic(
         uint256 _topic,
@@ -35,7 +35,7 @@ interface ITopicIdMapping {
         uint256 _topic
     ) external;
 
-    function getTopicInfo(
+    function topicInfo(
         uint256 _topic
     ) external view returns (Topic memory _topicInfo);
-} 
+}

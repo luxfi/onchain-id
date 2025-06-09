@@ -11,7 +11,7 @@ describe("TopicIdMapping", () => {
     let topicIdMapping: any;
     let topicIdMappingProxy: any;
 
-    beforeEach(async () => {        
+    beforeEach(async () => {
         // Deploy implementation
         const TopicIdMapping = await ethers.getContractFactory("TopicIdMapping");
         implementation = await TopicIdMapping.deploy();
@@ -34,7 +34,7 @@ describe("TopicIdMapping", () => {
     describe("Proxy functionality", () => {
         it("should allow owner to upgrade implementation", async () => {
             const [deployerWallet] = await ethers.getSigners();
-            
+
             // Deploy new implementation
             const TopicIdMapping = await ethers.getContractFactory("TopicIdMapping");
             const newImplementation = await TopicIdMapping.deploy();
@@ -48,7 +48,7 @@ describe("TopicIdMapping", () => {
 
         it("should not allow non-owner to upgrade implementation", async () => {
             const [, otherWallet] = await ethers.getSigners();
-            
+
             // Deploy new implementation
             const TopicIdMapping = await ethers.getContractFactory("TopicIdMapping");
             const newImplementation = await TopicIdMapping.deploy();
@@ -86,7 +86,7 @@ describe("TopicIdMapping", () => {
         ).to.not.be.reverted;
 
         // Verify msg.sender is preserved through delegatecall
-        const topicInfo = await topicIdMapping.getTopicInfo(TEST_TOPIC_ID);
+        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
         expect(topicInfo.name).to.equal(TEST_TOPIC_NAME);
         expect(topicInfo.format).to.equal(TEST_TOPIC_FORMAT);
     });
@@ -100,7 +100,7 @@ describe("TopicIdMapping", () => {
                 .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME)
         )
             .to.emit(topicIdMapping, "TopicAdded")
-            .withArgs(TEST_TOPIC_ID, TEST_TOPIC_FORMAT);
+            .withArgs(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME);
     });
 
     it("should emit TopicChanged event with correct data", async () => {
@@ -120,7 +120,7 @@ describe("TopicIdMapping", () => {
                 .updateTopic(TEST_TOPIC_ID, NEW_FORMAT, NEW_NAME)
         )
             .to.emit(topicIdMapping, "TopicChanged")
-            .withArgs(TEST_TOPIC_ID, NEW_FORMAT);
+            .withArgs(TEST_TOPIC_ID, NEW_FORMAT, NEW_NAME);
     });
 
     it("should emit TopicRemoved event with correct data", async () => {
@@ -138,7 +138,7 @@ describe("TopicIdMapping", () => {
                 .removeTopic(TEST_TOPIC_ID)
         )
             .to.emit(topicIdMapping, "TopicRemoved")
-            .withArgs(TEST_TOPIC_ID, TEST_TOPIC_FORMAT);
+            .withArgs(TEST_TOPIC_ID);
     });
 
     it("should set and get topic content correctly", async () => {
@@ -150,7 +150,7 @@ describe("TopicIdMapping", () => {
             .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME);
 
         // Anyone can read the topic
-        const topicInfo = await topicIdMapping.getTopicInfo(TEST_TOPIC_ID);
+        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
         expect(topicInfo.name).to.equal(TEST_TOPIC_NAME);
         expect(topicInfo.format).to.equal(TEST_TOPIC_FORMAT);
     });
@@ -171,7 +171,7 @@ describe("TopicIdMapping", () => {
             .updateTopic(TEST_TOPIC_ID, NEW_FORMAT, NEW_NAME);
 
         // Verify update
-        const topicInfo = await topicIdMapping.getTopicInfo(TEST_TOPIC_ID);
+        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
         expect(topicInfo.name).to.equal(NEW_NAME);
         expect(topicInfo.format).to.equal(NEW_FORMAT);
     });
@@ -190,7 +190,7 @@ describe("TopicIdMapping", () => {
             .removeTopic(TEST_TOPIC_ID);
 
         // Verify removal
-        const topicInfo = await topicIdMapping.getTopicInfo(TEST_TOPIC_ID);
+        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
         expect(topicInfo.name).to.equal("");
         expect(topicInfo.format).to.equal(0);
     });
@@ -211,7 +211,7 @@ describe("TopicIdMapping", () => {
         ).to.be.revertedWith("Ownable: caller is not the owner");
 
         // Verify topic wasn't changed
-        const topicInfo = await topicIdMapping.getTopicInfo(TEST_TOPIC_ID);
+        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
         expect(topicInfo.name).to.equal(TEST_TOPIC_NAME);
         expect(topicInfo.format).to.equal(TEST_TOPIC_FORMAT);
     });
