@@ -42,5 +42,8 @@
     "solady": "^0.1.15",
     "solhint-plugin-prettier": "^0.1.0",
     "solidity-coverage": "^0.8.14"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts-upgradeable": "^4.9.6"
   }
 }

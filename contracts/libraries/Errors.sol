@@ -14,40 +14,40 @@ library Errors {
 
     /// @notice Reverts if the factory is already registered
     error AlreadyAFactory(address factory);
-    
+
     /// @notice Reverts if the function is called on the sender address
     error CannotBeCalledOnSenderAddress();
-    
+
     /// @notice Reverts if the list of keys is empty
     error EmptyListOfKeys();
-    
+
     /// @notice Reverts if the string is empty
     error EmptyString();
-    
+
     /// @notice Reverts if the address is not a factory
     error NotAFactory(address factory);
-    
+
     /// @notice Reverts if the maximum number of wallets per identity is exceeded
     error MaxWalletsPerIdentityExceeded();
-    
+
     /// @notice Reverts if the only linked wallet tries to unlink
     error OnlyLinkedWalletCanUnlink();
-    
+
     /// @notice Reverts if the account is not authorized to call the function
     error OwnableUnauthorizedAccount(address account); // TODO: OZ
-    
+
     /// @notice Reverts if the salt is taken
     error SaltTaken(string salt);
-    
+
     /// @notice Reverts if the token is already linked
     error TokenAlreadyLinked(address token);
-    
+
     /// @notice Reverts if the wallet is already linked to an identity
     error WalletAlreadyLinkedToIdentity(address wallet);
-    
+
     /// @notice Reverts if the wallet is also listed in management keys
     error WalletAlsoListedInManagementKeys(address wallet);
-    
+
     /// @notice Reverts if the wallet is not linked to an identity
     error WalletNotLinkedToIdentity(address wallet);
 
@@ -55,25 +55,25 @@ library Errors {
 
     /// @notice The maximum number of signers was reached at deployment.
     error TooManySigners();
-    
+
     /// @notice The signed attempted to add was already approved.
     error SignerAlreadyApproved(address signer);
-    
+
     /// @notice The signed attempted to remove was not approved.
     error SignerAlreadyNotApproved(address signer);
-    
+
     /// @notice A requested ONCHAINID deployment was requested and signer by a non approved signer.
     error UnapprovedSigner(address signer);
-    
+
     /// @notice A requested ONCHAINID deployment was requested with a signature revoked.
     error RevokedSignature(bytes signature);
-    
+
     /// @notice A requested ONCHAINID deployment was requested with a signature that expired.
     error ExpiredSignature(bytes signature);
-    
+
     /// @notice Attempted to revoke a signature that was already revoked.
     error SignatureAlreadyRevoked(bytes signature);
-    
+
     /// @notice Attempted to approve a signature that was not revoked.
     error SignatureNotRevoked(bytes signature);
 
@@ -117,7 +117,7 @@ library Errors {
     error InteractingWithLibraryContractForbidden();
 
     /// @notice The sender does not have the management key.
-    error SenderDoesNotHaveManagementKey(); 
+    error SenderDoesNotHaveManagementKey();
 
     /// @notice The sender does not have the claim signer key.
     error SenderDoesNotHaveClaimSignerKey();
@@ -148,6 +148,23 @@ library Errors {
 
     /// @notice The claim is invalid.
     error InvalidClaim();
+
+    /* ----- TopicIdMapping ----- */
+
+    /// @notice 0 is not a valid topic.
+    error EmptyTopic();
+
+    /// @notice 0 is not a valid Format.
+    error EmptyFormat();
+
+    /// @notice Name cannot be left empty.
+    error EmptyName();
+
+    /// @notice Use update function for existing topics.
+    error TopicAlreadyExists(uint256 topic);
+
+    /// @notice Topic is not registered yet.
+    error TopicNotFound(uint256 topic);
 
     /* ----- ClaimIssuerFactory ----- */
 
