@@ -163,7 +163,6 @@ describe("ClaimIssuer", function () {
           [aliceClaim666.issuer, aliceClaim666.topic]
         )
       );
-      const claimBefore = await aliceIdentity.getClaim(claimId);
 
       // Approve the execution as the Identity owner
       await aliceIdentity.connect(aliceWallet).approve(executionId, true);
