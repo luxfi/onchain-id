@@ -92,6 +92,20 @@ contract Identity is Storage, IIdentity, Version {
 
         emit ExecutionRequested(_executionId, _to, _value, _data);
 
+        if (_to == address(this) && _data.length >= 4) {
+            bytes4 selector;
+            assembly {
+                selector := mload(add(_data, 32))
+            }
+            if (selector == this.addClaim.selector) {
+                if (keyHasPurpose(keccak256(abi.encode(msg.sender)), 3)) {
+                    approve(_executionId, true);
+                    return _executionId;
+                }
+            }
+        }
+
+        // Original auto-approval logic
         if (keyHasPurpose(keccak256(abi.encode(msg.sender)), 1)) {
             approve(_executionId, true);
         }

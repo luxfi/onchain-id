@@ -71,15 +71,11 @@ contract ClaimIssuer is IClaimIssuer, Identity {
             _uri
         );
 
-        (bool success, ) = address(_identity).call(
-            abi.encodeWithSelector(
-                _identity.execute.selector,
-                address(_identity),
-                0,
-                addClaimData
-            )
+        _identity.execute(
+            address(_identity),
+            0,
+            addClaimData
         );
-        require(success, Errors.CallFailed());
 
         return true;
     }
