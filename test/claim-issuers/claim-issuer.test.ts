@@ -117,5 +117,4 @@ describe('ClaimIssuer - Reference (with revoke)', () => {
       expect(await proxy.implementation()).to.be.equal(newClaimIssuer.target);
     });
   });
-  //add test here or keep it in separate test file?
 });

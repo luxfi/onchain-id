@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
+import "hardhat/console.sol";
 import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
 import {Identity, IIdentity} from "./Identity.sol";
 import {Errors} from "./libraries/Errors.sol";
@@ -71,11 +72,22 @@ contract ClaimIssuer is IClaimIssuer, Identity {
             _uri
         );
 
-        _identity.execute(
+        bytes memory executeData = abi.encodeWithSelector(
+            _identity.execute.selector,
             address(_identity),
             0,
             addClaimData
         );
+
+        (bool success, ) = address(_identity).call(
+            abi.encodeWithSelector(
+                _identity.execute.selector,
+                address(_identity),  
+                0,                   
+                executeData        
+            )
+        );
+        require(success, Errors.CallFailed());
 
         return true;
     }

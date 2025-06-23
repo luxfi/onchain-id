@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
-import { IIdentity } from "./interface/IIdentity.sol";
-import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
-import { Version } from "./version/Version.sol";
-import { Storage } from "./storage/Storage.sol";
-import { Errors } from "./libraries/Errors.sol";
+import {IIdentity} from "./interface/IIdentity.sol";
+import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
+import {Version} from "./version/Version.sol";
+import {Storage} from "./storage/Storage.sol";
+import {Errors} from "./libraries/Errors.sol";
 
 /**
  * @dev Implementation of the `IERC734` "KeyHolder" and the `IERC735` "ClaimHolder" interfaces
@@ -77,21 +77,18 @@ contract Identity is Storage, IIdentity, Version {
      * Otherwise the execution request must be approved via the `approve` method.
      * @return executionId to use in the approve function, to approve or reject this execution.
      */
-    function execute(address _to, uint256 _value, bytes memory _data)
-    external
-    delegatedOnly
-    override
-    payable
-    returns (uint256 executionId)
-    {
+    function execute(
+        address _to,
+        uint256 _value,
+        bytes memory _data
+    ) external payable override delegatedOnly returns (uint256 executionId) {
         uint256 _executionId = _executionNonce;
         _executions[_executionId].to = _to;
         _executions[_executionId].value = _value;
         _executions[_executionId].data = _data;
         _executionNonce++;
-
         emit ExecutionRequested(_executionId, _to, _value, _data);
-
+        //check if needs re-work
         if (_to == address(this) && _data.length >= 4) {
             bytes4 selector;
             assembly {
@@ -102,15 +99,28 @@ contract Identity is Storage, IIdentity, Version {
                     approve(_executionId, true);
                     return _executionId;
                 }
+                if (msg.sender == address(this)) {
+                    approve(_executionId, true);
+                    return _executionId;
+                } else if (
+                    keyHasPurpose(keccak256(abi.encode(msg.sender)), 3)
+                ) {
+                    approve(_executionId, true);
+                    return _executionId;
+                }
             }
         }
 
-        // Original auto-approval logic
-        if (keyHasPurpose(keccak256(abi.encode(msg.sender)), 1)) {
+        bytes32 senderKey = keccak256(abi.encode(msg.sender));
+        bool hasManagementKey = keyHasPurpose(senderKey, 1);
+        bool hasActionKey = keyHasPurpose(senderKey, 2);
+
+        if (hasManagementKey) {
             approve(_executionId, true);
-        }
-        else if (_to != address(this) && keyHasPurpose(keccak256(abi.encode(msg.sender)), 2)){
+            return _executionId;
+        } else if (_to != address(this) && hasActionKey) {
             approve(_executionId, true);
+            return _executionId;
         }
 
         return _executionId;
@@ -241,10 +251,10 @@ contract Identity is Storage, IIdentity, Version {
         require(_id < _executionNonce, Errors.InvalidRequestId());
         require(!_executions[_id].executed, Errors.RequestAlreadyExecuted());
 
-        if(_executions[_id].to == address(this)) {
+        if(_executions[_id].to == address(this) && msg.sender != address(this)) {
             require(keyHasPurpose(keccak256(abi.encode(msg.sender)), 1), Errors.SenderDoesNotHaveManagementKey());
         }
-        else {
+        else if(msg.sender != address(this)) {
             require(keyHasPurpose(keccak256(abi.encode(msg.sender)), 2), Errors.SenderDoesNotHaveActionKey());
         }
 
