@@ -10,26 +10,17 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const { claimIssuer, aliceWallet, aliceClaim666, aliceIdentity, claimIssuerWallet } =
           await loadFixture(deployIdentityFixture);
 
-        const claimIssuerKey = ethers.keccak256(
-          ethers.AbiCoder.defaultAbiCoder().encode(
-            ["address"],
-            [await claimIssuer.getAddress()],
-          ),
-        );
-
-        await aliceIdentity.connect(aliceWallet).addKey(claimIssuerKey, 1, 1);
-        // Create a NEW claim with a different topic
+        // Create a new claim with a different topic to avoid conflicts with fixture
         const newClaim = {
           identity: aliceIdentity.target,
           issuer: claimIssuer.target,
-          topic: 999, // Different topic than the fixture's 666
+          topic: 999,
           scheme: 1,
-          data: '0x0099', // Different data
+          data: '0x0099',
           signature: '',
           uri: 'https://example.com/new-claim',
         };
         
-        // Sign the new claim
         newClaim.signature = await claimIssuerWallet.signMessage(
           ethers.getBytes(
             ethers.keccak256(
@@ -41,6 +32,15 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           )
         );
 
+        // Add ClaimIssuer as management key (purpose 1) to aliceIdentity
+        const claimIssuerKey = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address"],
+            [await claimIssuer.getAddress()],
+          ),
+        );
+        await aliceIdentity.connect(aliceWallet).addKey(claimIssuerKey, 1, 1);
+
         const tx = await claimIssuer.addClaimTo(
           newClaim.topic,
           newClaim.scheme,
@@ -50,9 +50,6 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           newClaim.uri,
           newClaim.identity,
         );
-        
-        const receipt = await tx.wait();
-
         
         // Prepare the expected data for event assertions
         const addClaimData = aliceIdentity.interface.encodeFunctionData('addClaim', [
@@ -70,30 +67,20 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           addClaimData
         ]);
 
-
-        // Events from Alice's identity (outer execution)
-        await expect(tx).to.emit(aliceIdentity, 'ExecutionRequested').withArgs(0, aliceIdentity.target, 0, executeData);
+        // Events from Alice's identity (outer execution only)
+        await expect(tx).to.emit(aliceIdentity, 'ExecutionRequested').withArgs(0, aliceIdentity.target, 0, addClaimData);
         await expect(tx).to.emit(aliceIdentity, 'Approved').withArgs(0, true);
-        await expect(tx).to.emit(aliceIdentity, 'Executed').withArgs(0, aliceIdentity.target, 0, executeData);
+        await expect(tx).to.emit(aliceIdentity, 'Executed').withArgs(0, aliceIdentity.target, 0, addClaimData);
 
-        // Events from Alice's identity (inner execution - pending)
-        await expect(tx).to.emit(aliceIdentity, 'ExecutionRequested').withArgs(1, aliceIdentity.target, 0, addClaimData);
-
-        // Approve the pending execution
-     //   const approveTx = await aliceIdentity.connect(aliceWallet).approve(1, true);
-
-        // Events from the approval
-    //    await expect(approveTx).to.emit(aliceIdentity, 'Approved').withArgs(1, true);
-    //    await expect(approveTx).to.emit(aliceIdentity, 'Executed').withArgs(1, aliceIdentity.target, 0, addClaimData);
-
-        // Claim added event
+        // Since the ClaimIssuer has management keys (purpose 1), the inner addClaim should be auto-approved
+        // and executed immediately, so we should see the ClaimAdded event
         const claimId = ethers.keccak256(
           ethers.AbiCoder.defaultAbiCoder().encode(
             ["address", "uint256"],
             [newClaim.issuer, newClaim.topic],
           ),
         );
-    //    await expect(approveTx).to.emit(aliceIdentity, 'ClaimAdded').withArgs(claimId, newClaim.topic, newClaim.scheme, newClaim.issuer, newClaim.signature, newClaim.data, newClaim.uri);
+        await expect(tx).to.emit(aliceIdentity, 'ClaimAdded').withArgs(claimId, newClaim.topic, newClaim.scheme, newClaim.issuer, newClaim.signature, newClaim.data, newClaim.uri);
 
         // Verify the claim was actually added
         const claim = await aliceIdentity.getClaim(claimId);
@@ -134,11 +121,11 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const { claimIssuer, aliceWallet, aliceClaim666, aliceIdentity, claimIssuerWallet } =
           await loadFixture(deployIdentityFixture);
         
-        // Create a NEW claim with a different topic to avoid conflicts with fixture
+        // Create a new claim with a different topic to avoid conflicts with fixture
         const newClaim = {
           identity: aliceIdentity.target,
           issuer: claimIssuer.target,
-          topic: 999, // Different topic than the fixture's 666
+          topic: 999,
           scheme: 1,
           data: '0x0099',
           signature: '',
@@ -193,11 +180,8 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const claimBeforeApproval = await aliceIdentity.getClaim(claimId);
         expect(claimBeforeApproval.topic).to.equal(0);
 
-        // Approve the outer execution (ID 0)
+        // Approve the execution (ID 0)
         await aliceIdentity.connect(aliceWallet).approve(executionId, true);
-
-        // Approve the inner execution (ID 1) - this is needed for the nested execute
-       // await aliceIdentity.connect(aliceWallet).approve(1, true);
 
         const claim = await aliceIdentity.getClaim(claimId);
         expect(claim.topic).to.equal(newClaim.topic);
@@ -214,7 +198,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const { claimIssuer, aliceWallet, aliceClaim666, aliceIdentity, claimIssuerWallet } =
           await loadFixture(deployIdentityFixture);
 
-        // Create a NEW claim with a different topic to avoid conflicts with fixture
+        // Create a new claim with a different topic to avoid conflicts with fixture
         const newClaim = {
           identity: aliceIdentity.target,
           issuer: claimIssuer.target,
@@ -267,15 +251,10 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const claimBeforeApproval = await aliceIdentity.getClaim(claimId);
         expect(claimBeforeApproval.topic).to.equal(0);
 
-        // Approve the outer execution (ID 0)
+        // Approve the execution (ID 0)
         await aliceIdentity
           .connect(aliceWallet)
           .approve(0, true);
-
-        // Approve the inner execution (ID 1) - this is the key!
-        //  await aliceIdentity
-        //   .connect(aliceWallet)
-        //   .approve(1, true);
 
         // Verify that the claim is now added after both approvals
         const claimAfterApproval = await aliceIdentity.getClaim(claimId);
@@ -294,7 +273,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const { claimIssuer, aliceWallet, aliceClaim666, aliceIdentity, claimIssuerWallet } =
           await loadFixture(deployIdentityFixture);
 
-        // Create a NEW claim with a different topic
+        // Create a new claim with a different topic
         const newClaim = {
           identity: aliceIdentity.target,
           issuer: claimIssuer.target,
@@ -316,7 +295,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           )
         );
 
-        // Add ClaimIssuer as BOTH management key (purpose 1) AND claim signing key (purpose 3)
+        // Add ClaimIssuer as management key (purpose 1) and claim signing key (purpose 3)
         const claimIssuerKey = ethers.keccak256(
           ethers.AbiCoder.defaultAbiCoder().encode(
             ["address"],
@@ -325,8 +304,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         );
         
         await aliceIdentity.connect(aliceWallet).addKey(claimIssuerKey, 1, 1);
-        await aliceIdentity.connect(aliceWallet).addKey(claimIssuerKey, 3, 1);
-
+        
         const tx = await claimIssuer.addClaimTo(
           newClaim.topic,
           newClaim.scheme,
@@ -356,9 +334,9 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         ]);
 
         // Since both executes are auto-approved, we should only see one execution request and approval
-        await expect(tx).to.emit(aliceIdentity, 'ExecutionRequested').withArgs(0, aliceIdentity.target, 0, executeData);
+        await expect(tx).to.emit(aliceIdentity, 'ExecutionRequested').withArgs(0, aliceIdentity.target, 0, addClaimData);
         await expect(tx).to.emit(aliceIdentity, 'Approved').withArgs(0, true);
-        await expect(tx).to.emit(aliceIdentity, 'Executed').withArgs(0, aliceIdentity.target, 0, executeData);
+        await expect(tx).to.emit(aliceIdentity, 'Executed').withArgs(0, aliceIdentity.target, 0, addClaimData);
 
         // The inner execute (addClaim) should be auto-approved immediately, so no separate events
         // But the claim should be added

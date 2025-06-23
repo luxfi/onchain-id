@@ -71,19 +71,12 @@ contract ClaimIssuer is IClaimIssuer, Identity {
             _uri
         );
 
-        bytes memory executeData = abi.encodeWithSelector(
-            _identity.execute.selector,
-            address(_identity),
-            0,
-            addClaimData
-        );
-
         (bool success, ) = address(_identity).call(
             abi.encodeWithSelector(
                 _identity.execute.selector,
                 address(_identity),  
                 0,                   
-                executeData        
+                addClaimData        
             )
         );
         require(success, Errors.CallFailed());
