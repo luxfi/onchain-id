@@ -88,7 +88,7 @@ contract Identity is Storage, IIdentity, Version {
         _executions[_executionId].data = _data;
         _executionNonce++;
         emit ExecutionRequested(_executionId, _to, _value, _data);
-        //check if needs re-work
+        
         if (_to == address(this) && _data.length >= 4) {
             bytes4 selector;
             assembly {
@@ -100,11 +100,6 @@ contract Identity is Storage, IIdentity, Version {
                     return _executionId;
                 }
                 if (msg.sender == address(this)) {
-                    approve(_executionId, true);
-                    return _executionId;
-                } else if (
-                    keyHasPurpose(keccak256(abi.encode(msg.sender)), 3)
-                ) {
                     approve(_executionId, true);
                     return _executionId;
                 }
