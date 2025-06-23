@@ -7,7 +7,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
   describe("addClaimTo", function () {
     describe("when adding a claim to another identity with management key", function () {
       it("should add a claim using nested execute calls", async function () {
-        const { claimIssuer, aliceWallet, aliceClaim666, aliceIdentity, claimIssuerWallet } =
+        const { claimIssuer, aliceWallet, aliceIdentity, claimIssuerWallet } =
           await loadFixture(deployIdentityFixture);
 
         // Create a new claim with a different topic to avoid conflicts with fixture
@@ -59,12 +59,6 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           newClaim.signature,
           newClaim.data,
           newClaim.uri
-        ]);
-
-        const executeData = aliceIdentity.interface.encodeFunctionData('execute', [
-          aliceIdentity.target,
-          0,
-          addClaimData
         ]);
 
         // Events from Alice's identity (outer execution only)
@@ -195,7 +189,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
 
     describe("when addClaimTo is called by right key on ClaimIssuer but ClaimIssuer lacks key on Identity", function () {
       it("should keep the claim pending and the identity owner can approve the execution", async function () {
-        const { claimIssuer, aliceWallet, aliceClaim666, aliceIdentity, claimIssuerWallet } =
+        const { claimIssuer, aliceWallet, aliceIdentity, claimIssuerWallet } =
           await loadFixture(deployIdentityFixture);
 
         // Create a new claim with a different topic to avoid conflicts with fixture
@@ -270,7 +264,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
 
     describe("when ClaimIssuer has claim signing keys (purpose 3) on Identity", function () {
       it("should auto-approve addClaim execution", async function () {
-        const { claimIssuer, aliceWallet, aliceClaim666, aliceIdentity, claimIssuerWallet } =
+        const { claimIssuer, aliceWallet, aliceIdentity, claimIssuerWallet } =
           await loadFixture(deployIdentityFixture);
 
         // Create a new claim with a different topic
@@ -325,12 +319,6 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           newClaim.signature,
           newClaim.data,
           newClaim.uri
-        ]);
-
-        const executeData = aliceIdentity.interface.encodeFunctionData('execute', [
-          aliceIdentity.target,
-          0,
-          addClaimData
         ]);
 
         // Since both executes are auto-approved, we should only see one execution request and approval

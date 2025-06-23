@@ -95,7 +95,13 @@ contract Identity is Storage, IIdentity, Version {
         _executions[_executionId].value = _value;
         _executions[_executionId].data = _data;
         _executionNonce++;
+
         emit ExecutionRequested(_executionId, _to, _value, _data);
+
+        if(keyHasPurpose(keccak256(abi.encode(msg.sender)), 1)) {
+            approve(_executionId, true);
+            return _executionId;
+        }
 
         if (_to == address(this) && _data.length >= 4) {
             bytes4 selector;
