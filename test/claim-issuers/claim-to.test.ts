@@ -116,7 +116,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         );
       });
     });
-    describe("when adding a non-valid claim", function () {
+    describe("when signature is invalid", function () {
       it("should revert", async function () {
         const { claimIssuer, aliceWallet, aliceIdentity, claimIssuerWallet } =
           await loadFixture(deployIdentityFixture);
@@ -142,6 +142,48 @@ describe("ClaimIssuer - Add claim to another identity", function () {
               invalidClaim.uri,
               invalidClaim.identity,
             ),
+        ).to.be.revertedWithCustomError(claimIssuer, "InvalidClaim");
+      });
+    });
+    describe("when identity is address zero", function () {
+      it("should revert", async function () {
+        const { claimIssuer, aliceWallet, aliceIdentity, claimIssuerWallet } =
+          await loadFixture(deployIdentityFixture);
+
+        // Add management key for aliceWallet on claimIssuer
+        await claimIssuer.connect(claimIssuerWallet).addKey(
+          ethers.keccak256(
+            ethers.AbiCoder.defaultAbiCoder().encode(['address'], [aliceWallet.address])
+          ),
+          1,
+          1,
+        );
+
+        const newClaim = {
+          identity: ethers.ZeroAddress,
+          issuer: claimIssuer.target,
+          topic: 999,
+          scheme: 1,
+          data: '0x0099',
+          signature: '',
+          uri: 'https://example.com/new-claim',
+        };
+
+        newClaim.signature = await claimIssuerWallet.signMessage(
+          ethers.getBytes(
+            ethers.keccak256(
+              ethers.AbiCoder.defaultAbiCoder().encode(
+                ['address', 'uint256', 'bytes'],
+                [newClaim.identity, newClaim.topic, newClaim.data]
+              )
+            )
+          )
+        );
+
+        await expect(
+          claimIssuer
+            .connect(aliceWallet)
+            .addClaimTo(999, 1, '0x0099', '0x0099', 'https://example.com/new-claim', ethers.ZeroAddress),
         ).to.be.revertedWithCustomError(claimIssuer, "InvalidClaim");
       });
     });
@@ -384,6 +426,63 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         expect(claim.signature).to.equal(newClaim.signature);
         expect(claim.data).to.equal(newClaim.data);
         expect(claim.uri).to.equal(newClaim.uri);
+      });
+    });
+
+    describe("when execute call fails", function () {
+      it("should revert with CallFailed error", async function () {
+        const { claimIssuer, aliceIdentity, claimIssuerWallet, aliceWallet } = await loadFixture(deployIdentityFixture);
+
+        const newClaim = {
+          identity: aliceIdentity.target,
+          issuer: claimIssuer.target,
+          topic: 999,
+          scheme: 1,
+          data: '0x0099',
+          signature: '',
+          uri: 'https://example.com/new-claim',
+        };
+
+        newClaim.signature = await claimIssuerWallet.signMessage(
+          ethers.getBytes(
+            ethers.keccak256(
+              ethers.AbiCoder.defaultAbiCoder().encode(
+                ['address', 'uint256', 'bytes'],
+                [newClaim.identity, newClaim.topic, newClaim.data]
+              )
+            )
+          )
+        );
+
+        const claimIssuerKey = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address"],
+            [await claimIssuer.getAddress()],
+          ),
+        );
+        await aliceIdentity.connect(aliceWallet).addKey(claimIssuerKey, 3, 1);
+
+        // Remove all management keys from aliceIdentity to make execute fail
+        const aliceKey = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address"],
+            [aliceWallet.address],
+          ),
+        );
+        await aliceIdentity.connect(aliceWallet).removeKey(aliceKey, 1);
+
+        await expect(
+          claimIssuer
+            .connect(claimIssuerWallet)
+            .addClaimTo(
+              newClaim.topic,
+              newClaim.scheme,
+              newClaim.signature,
+              newClaim.data,
+              newClaim.uri,
+              newClaim.identity,
+            ),
+        ).to.be.revertedWithCustomError(claimIssuer, "CallFailed");
       });
     });
   });
