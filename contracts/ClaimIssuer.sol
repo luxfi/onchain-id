@@ -56,9 +56,9 @@ contract ClaimIssuer is IClaimIssuer, Identity {
         uint256 _topic,
         uint256 _scheme,
         address _issuer,
-        bytes memory _signature,
-        bytes memory _data,
-        string memory _uri,
+        bytes calldata _signature,
+        bytes calldata _data,
+        string calldata _uri,
         IIdentity _identity
     ) external delegatedOnly onlyManager returns (bool) {
         bytes memory addClaimData = abi.encodeWithSelector(
@@ -74,9 +74,9 @@ contract ClaimIssuer is IClaimIssuer, Identity {
         (bool success, ) = address(_identity).call(
             abi.encodeWithSelector(
                 _identity.execute.selector,
-                address(_identity),  
-                0,                   
-                addClaimData        
+                address(_identity),
+                0,
+                addClaimData
             )
         );
         require(success, Errors.CallFailed());
