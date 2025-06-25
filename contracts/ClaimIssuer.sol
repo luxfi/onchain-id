@@ -60,7 +60,11 @@ contract ClaimIssuer is IClaimIssuer, Identity {
         string calldata _uri,
         IIdentity _identity
     ) external delegatedOnly onlyManager {
-        bytes memory addClaimData = abi.encodeWithSelector(
+        require(
+            isClaimValid(_identity, _topic, _signature, _data),
+            Errors.InvalidClaim()
+        );
+    bytes memory addClaimData = abi.encodeWithSelector(
             _identity.addClaim.selector,
             _topic,
             _scheme,
