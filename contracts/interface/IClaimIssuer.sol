@@ -33,7 +33,6 @@ interface IClaimIssuer is IIdentity {
      * @dev Add a claim to the identity contract.
      * @param _topic the topic of the claim
      * @param _scheme the scheme of the claim
-     * @param _issuer the issuer of the claim
      * @param _signature the signature of the claim
      * @param _data the data of the claim
      * @param _uri the uri of the claim
@@ -43,7 +42,6 @@ interface IClaimIssuer is IIdentity {
     function addClaimTo(
         uint256 _topic,
         uint256 _scheme,
-        address _issuer,
         bytes calldata _signature,
         bytes calldata _data,
         string calldata _uri,

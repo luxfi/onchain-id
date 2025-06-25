@@ -20,12 +20,12 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           signature: '',
           uri: 'https://example.com/new-claim',
         };
-        
+
         newClaim.signature = await claimIssuerWallet.signMessage(
           ethers.getBytes(
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
-                ['address', 'uint256', 'bytes'], 
+                ['address', 'uint256', 'bytes'],
                 [newClaim.identity, newClaim.topic, newClaim.data]
               )
             )
@@ -44,13 +44,12 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const tx = await claimIssuer.addClaimTo(
           newClaim.topic,
           newClaim.scheme,
-          newClaim.issuer,
           newClaim.signature,
           newClaim.data,
           newClaim.uri,
           newClaim.identity,
         );
-        
+
         // Prepare the expected data for event assertions
         const addClaimData = aliceIdentity.interface.encodeFunctionData('addClaim', [
           newClaim.topic,
@@ -98,7 +97,6 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             .addClaimTo(
               aliceClaim666.topic,
               aliceClaim666.scheme,
-              aliceClaim666.issuer,
               aliceClaim666.signature,
               aliceClaim666.data,
               aliceClaim666.uri,
@@ -114,7 +112,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
       it("should require approval", async function () {
         const { claimIssuer, aliceWallet, aliceClaim666, aliceIdentity, claimIssuerWallet } =
           await loadFixture(deployIdentityFixture);
-        
+
         // Create a new claim with a different topic to avoid conflicts with fixture
         const newClaim = {
           identity: aliceIdentity.target,
@@ -125,12 +123,12 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           signature: '',
           uri: 'https://example.com/new-claim',
         };
-        
+
         newClaim.signature = await claimIssuerWallet.signMessage(
           ethers.getBytes(
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
-                ['address', 'uint256', 'bytes'], 
+                ['address', 'uint256', 'bytes'],
                 [newClaim.identity, newClaim.topic, newClaim.data]
               )
             )
@@ -140,7 +138,6 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const tx = await claimIssuer.addClaimTo(
           newClaim.topic,
           newClaim.scheme,
-          newClaim.issuer,
           newClaim.signature,
           newClaim.data,
           newClaim.uri,
@@ -202,12 +199,12 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           signature: '',
           uri: 'https://example.com/new-claim',
         };
-        
+
         newClaim.signature = await claimIssuerWallet.signMessage(
           ethers.getBytes(
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
-                ['address', 'uint256', 'bytes'], 
+                ['address', 'uint256', 'bytes'],
                 [newClaim.identity, newClaim.topic, newClaim.data]
               )
             )
@@ -217,7 +214,6 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const tx = await claimIssuer.addClaimTo(
           newClaim.topic,
           newClaim.scheme,
-          newClaim.issuer,
           newClaim.signature,
           newClaim.data,
           newClaim.uri,
@@ -277,12 +273,12 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           signature: '',
           uri: 'https://example.com/new-claim',
         };
-        
+
         newClaim.signature = await claimIssuerWallet.signMessage(
           ethers.getBytes(
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
-                ['address', 'uint256', 'bytes'], 
+                ['address', 'uint256', 'bytes'],
                 [newClaim.identity, newClaim.topic, newClaim.data]
               )
             )
@@ -296,21 +292,20 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             [await claimIssuer.getAddress()],
           ),
         );
-        
+
         await aliceIdentity.connect(aliceWallet).addKey(claimIssuerKey, 1, 1);
-        
+
         const tx = await claimIssuer.addClaimTo(
           newClaim.topic,
           newClaim.scheme,
-          newClaim.issuer,
           newClaim.signature,
           newClaim.data,
           newClaim.uri,
           newClaim.identity,
         );
-        
+
         const receipt = await tx.wait();
-        
+
         // Prepare the expected data for event assertions
         const addClaimData = aliceIdentity.interface.encodeFunctionData('addClaim', [
           newClaim.topic,

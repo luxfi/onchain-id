@@ -55,7 +55,6 @@ contract ClaimIssuer is IClaimIssuer, Identity {
     function addClaimTo(
         uint256 _topic,
         uint256 _scheme,
-        address _issuer,
         bytes calldata _signature,
         bytes calldata _data,
         string calldata _uri,
@@ -65,7 +64,7 @@ contract ClaimIssuer is IClaimIssuer, Identity {
             _identity.addClaim.selector,
             _topic,
             _scheme,
-            _issuer,
+            address(this),
             _signature,
             _data,
             _uri
