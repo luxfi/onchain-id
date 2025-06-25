@@ -174,4 +174,7 @@ library Errors {
     /// @notice The address is blacklisted.
     error Blacklisted(address addr);
     
+    /// @notice The call failed.
+    error CallFailed();
+
 }
