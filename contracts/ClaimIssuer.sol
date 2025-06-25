@@ -83,6 +83,7 @@ contract ClaimIssuer is IClaimIssuer, Identity {
             )
         );
         require(success, Errors.CallFailed());
+        emit ClaimAddedTo(address(_identity), _topic, _signature, _data);
     }
 
     /**
