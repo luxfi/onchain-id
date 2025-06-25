@@ -37,7 +37,6 @@ interface IClaimIssuer is IIdentity {
      * @param _data the data of the claim
      * @param _uri the uri of the claim
      * @param _identity the identity contract to add the claim to
-     * @return success true if the claim was added successfully
      */
     function addClaimTo(
         uint256 _topic,
@@ -46,7 +45,7 @@ interface IClaimIssuer is IIdentity {
         bytes calldata _data,
         string calldata _uri,
         IIdentity _identity
-    ) external returns (bool);
+    ) external;
 
     /**
      * @dev Returns revocation status of a claim.
