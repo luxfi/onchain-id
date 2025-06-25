@@ -75,6 +75,14 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         );
         await expect(tx).to.emit(aliceIdentity, 'ClaimAdded').withArgs(claimId, newClaim.topic, newClaim.scheme, newClaim.issuer, newClaim.signature, newClaim.data, newClaim.uri);
 
+        // Check that ClaimAddedTo event is emitted by the ClaimIssuer
+        await expect(tx).to.emit(claimIssuer, 'ClaimAddedTo').withArgs(
+          newClaim.identity,
+          newClaim.topic,
+          newClaim.signature,
+          newClaim.data
+        );
+
         // Verify the claim was actually added
         const claim = await aliceIdentity.getClaim(claimId);
         expect(claim.topic).to.equal(newClaim.topic);
@@ -106,6 +114,35 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           claimIssuer,
           "SenderDoesNotHaveManagementKey",
         );
+      });
+    });
+    describe("when adding a non-valid claim", function () {
+      it("should revert", async function () {
+        const { claimIssuer, aliceWallet, aliceIdentity, claimIssuerWallet } =
+          await loadFixture(deployIdentityFixture);
+
+        const invalidClaim = {
+          identity: aliceIdentity.target,
+          issuer: claimIssuer.target,
+          topic: 999,
+          scheme: 1,
+          data: '0x0099',
+          signature: '0x1234567890abcdef',
+          uri: 'https://example.com/invalid-claim',
+        };
+
+        await expect(
+          claimIssuer
+            .connect(claimIssuerWallet)
+            .addClaimTo(
+              invalidClaim.topic,
+              invalidClaim.scheme,
+              invalidClaim.signature,
+              invalidClaim.data,
+              invalidClaim.uri,
+              invalidClaim.identity,
+            ),
+        ).to.be.revertedWithCustomError(claimIssuer, "InvalidClaim");
       });
     });
     describe("when user doesn't have the right key on Identity side", function () {
@@ -330,6 +367,14 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           ),
         );
         await expect(tx).to.emit(aliceIdentity, 'ClaimAdded').withArgs(claimId, newClaim.topic, newClaim.scheme, newClaim.issuer, newClaim.signature, newClaim.data, newClaim.uri);
+
+        // Check that ClaimAddedTo event is emitted by the ClaimIssuer
+        await expect(tx).to.emit(claimIssuer, 'ClaimAddedTo').withArgs(
+          newClaim.identity,
+          newClaim.topic,
+          newClaim.signature,
+          newClaim.data
+        );
 
         // Verify the claim was actually added
         const claim = await aliceIdentity.getClaim(claimId);
