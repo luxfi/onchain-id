@@ -62,6 +62,7 @@ contract Verifier is Ownable {
         _;
     }
 
+    constructor() Ownable(msg.sender) {}
     /**
      *  @dev See {IClaimTopicsRegistry-removeClaimTopic}.
      */
@@ -232,7 +233,8 @@ contract Verifier is Ownable {
      * issuer for each required claim topic. Returns true if the identity is compliant, false otherwise.
      */
     function verify(address identity) public view returns(bool isVerified) {
-        if (requiredClaimTopics.length == 0) {
+        uint256 requiredClaimTopicsLength = requiredClaimTopics.length;
+        if (requiredClaimTopicsLength == 0) {
             return true;
         }
 
@@ -242,7 +244,7 @@ contract Verifier is Ownable {
         bytes memory sig;
         bytes memory data;
         uint256 claimTopic;
-        for (claimTopic = 0; claimTopic < requiredClaimTopics.length; claimTopic++) {
+        for (claimTopic = 0; claimTopic < requiredClaimTopicsLength; claimTopic++) {
             IClaimIssuer[] memory trustedIssuersForClaimTopic =
                                 this.getTrustedIssuersForClaimTopic(requiredClaimTopics[claimTopic]);
 

@@ -169,12 +169,13 @@ library Errors {
     /* ----- ClaimIssuerFactory ----- */
 
     /// @notice The claim issuer already exists.
-    error ClaimIssuerAlreadyDeployed(address managementKey);    
+    error ClaimIssuerAlreadyDeployed(address managementKey);
 
     /// @notice The address is blacklisted.
     error Blacklisted(address addr);
     
     /// @notice The call failed.
     error CallFailed();
+
 
 }

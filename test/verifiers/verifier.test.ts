@@ -9,7 +9,7 @@ describe('Verifier', () => {
         const [deployer, aliceWallet] = await ethers.getSigners();
         const verifier = await ethers.deployContract('Verifier');
 
-        await expect(verifier.verify(aliceWallet.address)).to.eventually.be.true;
+        expect(await verifier.verify(aliceWallet.address)).to.be.true;
       });
     });
 
@@ -19,7 +19,7 @@ describe('Verifier', () => {
         const verifier = await ethers.deployContract('Verifier');
         await verifier.addClaimTopic(ethers.encodeBytes32String('SOME_TOPIC'));
 
-        await expect(verifier.verify(aliceWallet.address)).to.eventually.be.false;
+        expect(await verifier.verify(aliceWallet.address)).to.be.false;
       });
     });
 
@@ -30,7 +30,7 @@ describe('Verifier', () => {
         await verifier.addClaimTopic(ethers.encodeBytes32String('SOME_TOPIC'));
         await verifier.addTrustedIssuer(deployer.address, [ethers.encodeBytes32String('SOME_OTHER_TOPIC')]);
 
-        await expect(verifier.verify(aliceWallet.address)).to.eventually.be.false;
+        expect(await verifier.verify(aliceWallet.address)).to.be.false;
       });
     });
 
@@ -44,7 +44,7 @@ describe('Verifier', () => {
           await verifier.addClaimTopic(ethers.encodeBytes32String('SOME_TOPIC'));
           await verifier.addTrustedIssuer(claimIssuer.target, [ethers.encodeBytes32String('SOME_TOPIC')]);
 
-          await expect(verifier.verify(aliceIdentity.target)).to.eventually.be.false;
+          expect(await verifier.verify(aliceIdentity.target)).to.be.false;
         });
       });
 
@@ -81,7 +81,7 @@ describe('Verifier', () => {
             aliceClaim666.signature,
           );
 
-          await expect(verifier.verify(aliceIdentity.target)).to.eventually.be.false;
+          expect(await verifier.verify(aliceIdentity.target)).to.be.false;
         });
       });
 
@@ -115,7 +115,7 @@ describe('Verifier', () => {
             aliceClaim666.uri,
           );
 
-          await expect(verifier.verify(aliceIdentity.target)).to.eventually.be.true;
+          expect(await verifier.verify(aliceIdentity.target)).to.be.true;
         });
       });
     });
@@ -217,7 +217,7 @@ describe('Verifier', () => {
 
           await claimIssuerB.connect(claimIssuerBWallet).revokeClaimBySignature(aliceClaim666B.signature);
 
-          await expect(verifier.verify(aliceIdentity.target)).to.eventually.be.true;
+          expect(await verifier.verify(aliceIdentity.target)).to.be.true;
         });
       });
 
@@ -296,7 +296,7 @@ describe('Verifier', () => {
 
           await claimIssuerB.connect(claimIssuerBWallet).revokeClaimBySignature(aliceClaim42.signature);
 
-          await expect(verifier.verify(aliceIdentity.target)).to.eventually.be.false;
+          expect(await verifier.verify(aliceIdentity.target)).to.be.false;
         });
       });
     });
@@ -308,7 +308,7 @@ describe('Verifier', () => {
         const [deployer, aliceWallet] = await ethers.getSigners();
         const verifier = await ethers.deployContract('Verifier');
 
-        await expect(verifier.connect(aliceWallet).removeClaimTopic(2)).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(verifier.connect(aliceWallet).removeClaimTopic(2)).to.be.revertedWithCustomError(verifier, 'OwnableUnauthorizedAccount');
       });
     });
 
@@ -336,7 +336,7 @@ describe('Verifier', () => {
         const verifier = await ethers.deployContract('Verifier');
         const claimIssuer = await ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
 
-        await expect(verifier.connect(aliceWallet).removeTrustedIssuer(claimIssuer.target)).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(verifier.connect(aliceWallet).removeTrustedIssuer(claimIssuer.target)).to.be.revertedWithCustomError(verifier, 'OwnableUnauthorizedAccount');
       });
     });
 
@@ -383,7 +383,7 @@ describe('Verifier', () => {
         const verifier = await ethers.deployContract('Verifier');
         const claimIssuer = await ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
 
-        await expect(verifier.connect(aliceWallet).addTrustedIssuer(claimIssuer.target, [1])).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(verifier.connect(aliceWallet).addTrustedIssuer(claimIssuer.target, [1])).to.be.revertedWithCustomError(verifier, 'OwnableUnauthorizedAccount');
       });
     });
 
@@ -447,7 +447,7 @@ describe('Verifier', () => {
         const verifier = await ethers.deployContract('Verifier');
         const claimIssuer = await ethers.deployContract('ClaimIssuer', [aliceWallet.address]);
 
-        await expect(verifier.connect(aliceWallet).updateIssuerClaimTopics(claimIssuer.target, [1])).to.be.revertedWith('Ownable: caller is not the owner');
+        await expect(verifier.connect(aliceWallet).updateIssuerClaimTopics(claimIssuer.target, [1])).to.be.revertedWithCustomError(verifier, 'OwnableUnauthorizedAccount');
       });
     });
 

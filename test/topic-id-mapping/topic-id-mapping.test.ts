@@ -42,7 +42,7 @@ describe("TopicIdMapping", () => {
 
             // Upgrade implementation
             await expect(
-                topicIdMapping.connect(deployerWallet).upgradeTo(await newImplementation.getAddress())
+                topicIdMapping.connect(deployerWallet).upgradeToAndCall(await newImplementation.getAddress(), "0x")
             ).to.not.be.reverted;
         });
 
@@ -56,7 +56,7 @@ describe("TopicIdMapping", () => {
 
             // Try to upgrade implementation
             await expect(
-                topicIdMapping.connect(otherWallet).upgradeTo(await newImplementation.getAddress())
+                topicIdMapping.connect(otherWallet).upgradeToAndCall(await newImplementation.getAddress(), "0x")
             ).to.be.revertedWith("Ownable: caller is not the owner");
         });
     });

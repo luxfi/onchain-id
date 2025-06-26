@@ -91,12 +91,13 @@ describe('ClaimIssuer - Reference (with revoke)', () => {
       const { claimIssuer, claimIssuerWallet, aliceWallet } = await loadFixture(deployIdentityFixture);
 
       const ClaimIssuerFactory = await ethers.getContractFactory('ClaimIssuerFactory');
-      const claimIssuerFactory = await ClaimIssuerFactory.deploy(claimIssuer.target);
+      const claimIssuerFactory = await ClaimIssuerFactory.connect(claimIssuerWallet).deploy(claimIssuer.target);
+      expect(await claimIssuerFactory.owner()).to.be.equal(claimIssuerWallet.address);
 
       const tx = await claimIssuerFactory.connect(claimIssuerWallet).deployClaimIssuer();
       await tx.wait();
       const proxyAddress = await claimIssuerFactory.claimIssuer(claimIssuerWallet.address);
-      const proxy = await ethers.getContractAt('ITransparentUpgradeableProxy', proxyAddress);
+      const proxy = await ethers.getContractAt('UUPSUpgradeable', proxyAddress);
 
       return { claimIssuer, claimIssuerWallet, aliceWallet, proxy };
     }
@@ -104,17 +105,19 @@ describe('ClaimIssuer - Reference (with revoke)', () => {
     it('should revert if not owner', async () => {
       const { proxy, aliceWallet, claimIssuer } = await loadFixture(deployUpgradeFixture);
 
-      await expect(proxy.connect(aliceWallet).upgradeTo(claimIssuer.target)).to.be.reverted;
+      await expect(proxy.connect(aliceWallet).upgradeToAndCall(claimIssuer.target, "0x")).to.be.reverted;
     });
 
     it('should upgrade the implementation', async () => {
       const { proxy, claimIssuerWallet } = await loadFixture(deployUpgradeFixture);
 
-      const ClaimIssuer = await ethers.getContractFactory('ClaimIssuer');
-      const newClaimIssuer = await ClaimIssuer.connect(claimIssuerWallet).deploy(claimIssuerWallet.address);
+      const claimIssuer = await ethers.getContractFactory('ClaimIssuer');
+      const newClaimIssuer = await claimIssuer.connect(claimIssuerWallet).deploy(claimIssuerWallet.address);
 
-      await proxy.upgradeTo(newClaimIssuer.target);
-      expect(await proxy.implementation()).to.be.equal(newClaimIssuer.target);
+      await proxy.connect(claimIssuerWallet).upgradeToAndCall(newClaimIssuer.target, "0x");
+      const implementationSlot = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+      const implementationAddress = await ethers.provider.getStorage(proxy.target, implementationSlot);
+      expect(ethers.getAddress(implementationAddress.slice(-40))).to.be.equal(newClaimIssuer.target);
     });
   });
 });

@@ -7,6 +7,8 @@ import { IdentityProxy } from "../proxy/IdentityProxy.sol";
 import { IIdFactory } from "./IIdFactory.sol";
 import { IERC734 } from "../interface/IERC734.sol";
 import { Errors } from "../libraries/Errors.sol";
+import { KeyPurposes } from "../libraries/KeyPurposes.sol";
+import { KeyTypes } from "../libraries/KeyTypes.sol";
 
 
 contract IdFactory is IIdFactory, Ownable {
@@ -14,7 +16,7 @@ contract IdFactory is IIdFactory, Ownable {
     mapping(address => bool) private _tokenFactories;
 
     // address of the _implementationAuthority contract making the link to the implementation contract
-    address private immutable _implementationAuthority;
+    address public immutable implementationAuthority;
 
     // as it is not possible to deploy 2 times the same contract address, this mapping allows us to check which
     // salt is taken and which is not
@@ -34,9 +36,9 @@ contract IdFactory is IIdFactory, Ownable {
 
 
     // setting
-    constructor (address implementationAuthority) {
-        require(implementationAuthority != address(0), Errors.ZeroAddress());
-        _implementationAuthority = implementationAuthority;
+    constructor (address implementationAuthorityAddress) Ownable(msg.sender) {
+        require(implementationAuthorityAddress != address(0), Errors.ZeroAddress());
+        implementationAuthority = implementationAuthorityAddress;
     }
 
     /**
@@ -71,7 +73,7 @@ contract IdFactory is IIdFactory, Ownable {
         string memory oidSalt = string.concat("OID",_salt);
         require (!_saltTaken[oidSalt], Errors.SaltTaken(oidSalt));
         require (_userIdentity[_wallet] == address(0), Errors.WalletAlreadyLinkedToIdentity(_wallet));
-        address identity = _deployIdentity(oidSalt, _implementationAuthority, _wallet);
+        address identity = _deployIdentity(oidSalt, _wallet);
         _saltTaken[oidSalt] = true;
         _userIdentity[_wallet] = identity;
         _wallets[identity].push(_wallet);
@@ -94,22 +96,22 @@ contract IdFactory is IIdFactory, Ownable {
         require (_userIdentity[_wallet] == address(0), Errors.WalletAlreadyLinkedToIdentity(_wallet));
         require(_managementKeys.length > 0, Errors.EmptyListOfKeys());
 
-        address identity = _deployIdentity(oidSalt, _implementationAuthority, address(this));
+        address identity = _deployIdentity(oidSalt, address(this));
 
-        for (uint i = 0; i < _managementKeys.length; i++) {
+        for (uint256 i = 0; i < _managementKeys.length; i++) {
             require(
                 _managementKeys[i] != keccak256(abi.encode(_wallet))
                 , Errors.WalletAlsoListedInManagementKeys(_wallet));
             IERC734(identity).addKey(
                 _managementKeys[i],
-                1,
-                1
+                KeyPurposes.MANAGEMENT,
+                KeyTypes.ECDSA
             );
         }
 
         IERC734(identity).removeKey(
             keccak256(abi.encode(address(this))),
-            1
+            KeyPurposes.MANAGEMENT
         );
 
         _saltTaken[oidSalt] = true;
@@ -128,14 +130,14 @@ contract IdFactory is IIdFactory, Ownable {
         address _tokenOwner,
         string memory _salt)
     external override returns (address) {
-        require(isTokenFactory(msg.sender) || msg.sender == owner(), Errors.OwnableUnauthorizedAccount(msg.sender));
+        require(isTokenFactory(msg.sender) || msg.sender == owner(), OwnableUnauthorizedAccount(msg.sender));
         require(_token != address(0), Errors.ZeroAddress());
         require(_tokenOwner != address(0), Errors.ZeroAddress());
         require(keccak256(abi.encode(_salt)) != keccak256(abi.encode("")), Errors.EmptyString());
         string memory tokenIdSalt = string.concat("Token",_salt);
         require(!_saltTaken[tokenIdSalt], Errors.SaltTaken(tokenIdSalt));
         require(_tokenIdentity[_token] == address(0), Errors.TokenAlreadyLinked(_token));
-        address identity = _deployIdentity(tokenIdSalt, _implementationAuthority, _tokenOwner);
+        address identity = _deployIdentity(tokenIdSalt, _tokenOwner);
         _saltTaken[tokenIdSalt] = true;
         _tokenIdentity[_token] = identity;
         _tokenAddress[identity] = _token;
@@ -185,9 +187,8 @@ contract IdFactory is IIdFactory, Ownable {
         if(_tokenIdentity[_wallet] != address(0)) {
             return _tokenIdentity[_wallet];
         }
-        else {
-            return _userIdentity[_wallet];
-        }
+
+        return _userIdentity[_wallet];
     }
 
     /**
@@ -218,13 +219,6 @@ contract IdFactory is IIdFactory, Ownable {
         return _tokenFactories[_factory];
     }
 
-    /**
-     *  @dev See {IdFactory-implementationAuthority}.
-     */
-    function implementationAuthority() public override view returns (address) {
-        return _implementationAuthority;
-    }
-
     // deploy function with create2 opcode call
     // returns the address of the contract created
     function _deploy(string memory salt, bytes memory bytecode) private returns (address) {
@@ -244,12 +238,7 @@ contract IdFactory is IIdFactory, Ownable {
     }
 
     // function used to deploy an identity using CREATE2
-    function _deployIdentity
-    (
-        string memory _salt,
-        address implementationAuthority,
-        address _wallet
-    ) private returns (address){
+    function _deployIdentity(string memory _salt, address _wallet) private returns (address) {
         bytes memory _code = type(IdentityProxy).creationCode;
         bytes memory _constructData = abi.encode(implementationAuthority, _wallet);
         bytes memory bytecode = abi.encodePacked(_code, _constructData);

@@ -2,7 +2,7 @@
 pragma solidity 0.8.27;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { CREATE3 } from "solady/src/utils/CREATE3.sol";
 
 import { ClaimIssuer, Identity } from "../ClaimIssuer.sol";
@@ -23,8 +23,8 @@ contract ClaimIssuerFactory is Ownable {
     /// @notice Event emitted when the implementation is updated
     event ImplementationUpdated(address indexed oldImplementation, address indexed newImplementation);
 
-    constructor(address implementation) Ownable() {
-        _implementation = implementation;
+    constructor(address implementationAddress) Ownable(msg.sender) {
+        _implementation = implementationAddress;
     }
 
     /**
@@ -100,26 +100,21 @@ contract ClaimIssuerFactory is Ownable {
         require(!_blacklistedAddresses[msg.sender], Errors.Blacklisted(msg.sender));
         require(_deployedClaimIssuers[managementKey] == address(0), Errors.ClaimIssuerAlreadyDeployed(managementKey));
 
-        address claimIssuer = CREATE3.deployDeterministic(
+        address claimIssuerAddress = CREATE3.deployDeterministic(
             abi.encodePacked(
-                type(TransparentUpgradeableProxy).creationCode,
-                // TransparentUpgradeableProxy constructor arguments:
-                // - implementation address
-                // - admin address
-                // - data: call initialize(managementKey)
+                type(ERC1967Proxy).creationCode,
                 abi.encode(
                     _implementation,
-                    owner(),
                     abi.encodeWithSelector(bytes4(keccak256("initialize(address)")), managementKey)
                 )
             ),
             bytes32(uint256(uint160(managementKey)))
         );
 
-        _deployedClaimIssuers[managementKey] = claimIssuer;
-        emit ClaimIssuerDeployed(managementKey, claimIssuer);
+        _deployedClaimIssuers[managementKey] = claimIssuerAddress;
+        emit ClaimIssuerDeployed(managementKey, claimIssuerAddress);
 
-        return claimIssuer;
+        return claimIssuerAddress;
     }
 
 }
