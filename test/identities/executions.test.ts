@@ -6,6 +6,110 @@ import { deployIdentityFixture, KeyPurposes, KeyTypes } from '../fixtures';
 
 describe('Identity', () => {
   describe('Execute', () => {
+    describe('when calling with nested executes', () => {
+      it('should execute immediately the action if ClaimIssuer is management key', async () => {
+        const { aliceIdentity, aliceWallet, claimIssuer, claimIssuerWallet } = await loadFixture(deployIdentityFixture);
+        // generate claim
+        let claim = {
+          identity: aliceIdentity.target,
+          issuer: claimIssuer.target,
+          topic: 42,
+          scheme: 1,
+          data: '0x0042',
+          signature: '',
+          uri: 'https://example.com',
+        };
+        claim.signature = await claimIssuerWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [claim.identity, claim.topic, claim.data]))));
+        // add ClaimIssuer as a management key
+        const claimIssuerHash = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(['address'], [claimIssuer.target])
+        );
+        await expect(
+          aliceIdentity.connect(aliceWallet).addKey(claimIssuerHash, 1, 1)
+        ).to.be.fulfilled;
+        // prepare execution bytes
+        const actionOnAlice = {
+          to: aliceIdentity.target,
+          value: 0,
+          data: aliceIdentity.interface.encodeFunctionData('addClaim', [
+            claim.topic, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri
+          ]),
+        };
+
+        const actionOnClaimIssuer = {
+          to: aliceIdentity.target,
+          value: 0,
+          data: aliceIdentity.interface.encodeFunctionData('execute', [
+            actionOnAlice.to, actionOnAlice.value, actionOnAlice.data
+          ]),
+        };
+
+        // execute the call on ClaimIssuer
+        const tx = await claimIssuer.connect(claimIssuerWallet).execute(actionOnClaimIssuer.to, actionOnClaimIssuer.value, actionOnClaimIssuer.data);
+
+        // Events from ClaimIssuer contract (outer execution)
+        await expect(tx).to.emit(claimIssuer, 'ExecutionRequested').withArgs(0, actionOnClaimIssuer.to, actionOnClaimIssuer.value, actionOnClaimIssuer.data);
+        await expect(tx).to.emit(claimIssuer, 'Approved').withArgs(0, true);
+        await expect(tx).to.emit(claimIssuer, 'Executed').withArgs(0, actionOnClaimIssuer.to, actionOnClaimIssuer.value, actionOnClaimIssuer.data);
+
+        // Events from Alice's identity (inner execution)
+        await expect(tx).to.emit(aliceIdentity, 'ExecutionRequested').withArgs(0, actionOnAlice.to, actionOnAlice.value, actionOnAlice.data);
+        await expect(tx).to.emit(aliceIdentity, 'Approved').withArgs(0, true);
+        await expect(tx).to.emit(aliceIdentity, 'Executed').withArgs(0, actionOnAlice.to, actionOnAlice.value, actionOnAlice.data);
+
+        // Claim added event
+        const claimId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256'], [claim.issuer, claim.topic]));
+        await expect(tx).to.emit(aliceIdentity, 'ClaimAdded').withArgs(claimId, claim.topic, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri);
+      });
+      it('should create a pending execution if ClaimIssuer is not management key', async () => {
+        const { aliceIdentity, aliceWallet, claimIssuer, claimIssuerWallet } = await loadFixture(deployIdentityFixture);
+        // generate claim
+        let claim = {
+          identity: aliceIdentity.target,
+          issuer: claimIssuer.target,
+          topic: 42,
+          scheme: 1,
+          data: '0x0042',
+          signature: '',
+          uri: 'https://example.com',
+        };
+        claim.signature = await claimIssuerWallet.signMessage(ethers.getBytes(ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256', 'bytes'], [claim.identity, claim.topic, claim.data]))));
+        // prepare execution bytes
+        const actionOnAlice = {
+          to: aliceIdentity.target,
+          value: 0,
+          data: aliceIdentity.interface.encodeFunctionData('addClaim', [
+            claim.topic, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri
+          ]),
+        };
+
+        const actionOnClaimIssuer = {
+          to: aliceIdentity.target,
+          value: 0,
+          data: aliceIdentity.interface.encodeFunctionData('execute', [
+            actionOnAlice.to, actionOnAlice.value, actionOnAlice.data
+          ]),
+        };
+
+        // execute the call on ClaimIssuer
+        const tx = await claimIssuer.connect(claimIssuerWallet).execute(actionOnClaimIssuer.to, actionOnClaimIssuer.value, actionOnClaimIssuer.data);
+
+        // Events from ClaimIssuer contract (outer execution)
+        await expect(tx).to.emit(claimIssuer, 'ExecutionRequested').withArgs(0, actionOnClaimIssuer.to, actionOnClaimIssuer.value, actionOnClaimIssuer.data);
+        await expect(tx).to.emit(claimIssuer, 'Approved').withArgs(0, true);
+        await expect(tx).to.emit(claimIssuer, 'Executed').withArgs(0, actionOnClaimIssuer.to, actionOnClaimIssuer.value, actionOnClaimIssuer.data);
+
+        // Events from Alice's identity (inner execution)
+        await expect(tx).to.emit(aliceIdentity, 'ExecutionRequested').withArgs(0, actionOnAlice.to, actionOnAlice.value, actionOnAlice.data);
+        const tx2 = await aliceIdentity.connect(aliceWallet).approve(0, true);
+        await expect(tx2).to.emit(aliceIdentity, 'Approved').withArgs(0, true);
+        await expect(tx2).to.emit(aliceIdentity, 'Executed').withArgs(0, actionOnAlice.to, actionOnAlice.value, actionOnAlice.data);
+
+        // Claim added event
+        const claimId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address', 'uint256'], [claim.issuer, claim.topic]));
+        await expect(tx2).to.emit(aliceIdentity, 'ClaimAdded').withArgs(claimId, claim.topic, claim.scheme, claim.issuer, claim.signature, claim.data, claim.uri);
+      });
+    });
     describe('when calling execute as a MANAGEMENT key', () => {
       describe('when execution is possible (transferring value with enough funds on the identity)', () => {
         it('should execute immediately the action', async () => {

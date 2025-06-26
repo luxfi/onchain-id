@@ -12,14 +12,18 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
     mapping (bytes => bool) public revokedClaims;
 
     // solhint-disable-next-line no-empty-blocks
-    constructor(address initialManagementKey) Identity(initialManagementKey, false) {}
+    constructor(
+        address initialManagementKey
+    ) Identity(initialManagementKey, false) {}
 
     function _authorizeUpgrade(address newImplementation) internal override onlyManager {}
 
     /**
      *  @dev See {IClaimIssuer-revokeClaimBySignature}.
      */
-    function revokeClaimBySignature(bytes calldata signature) external override delegatedOnly onlyManager {
+    function revokeClaimBySignature(
+        bytes calldata signature
+    ) external override delegatedOnly onlyManager {
         require(!revokedClaims[signature], Errors.ClaimAlreadyRevoked());
 
         revokedClaims[signature] = true;
@@ -30,14 +34,18 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
     /**
      *  @dev See {IClaimIssuer-revokeClaim}.
      */
-    function revokeClaim(bytes32 _claimId, address _identity) external override delegatedOnly onlyManager returns(bool) {
+    function revokeClaim(
+        bytes32 _claimId,
+        address _identity
+    ) external override delegatedOnly onlyManager returns (bool) {
         uint256 foundClaimTopic;
         uint256 scheme;
         address issuer;
         bytes memory sig;
         bytes memory data;
 
-        ( foundClaimTopic, scheme, issuer, sig, data, ) = Identity(_identity).getClaim(_claimId);
+        (foundClaimTopic, scheme, issuer, sig, data, ) = Identity(_identity)
+            .getClaim(_claimId);
 
         require(!revokedClaims[sig], Errors.ClaimAlreadyRevoked());
 
@@ -47,18 +55,56 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
     }
 
     /**
+     *  @dev See {IClaimIssuer-addClaimTo}.
+     */
+    function addClaimTo(
+        uint256 _topic,
+        uint256 _scheme,
+        bytes calldata _signature,
+        bytes calldata _data,
+        string calldata _uri,
+        IIdentity _identity
+    ) external delegatedOnly onlyManager {
+        require(
+            isClaimValid(_identity, _topic, _signature, _data),
+            Errors.InvalidClaim()
+        );
+    bytes memory addClaimData = abi.encodeWithSelector(
+            _identity.addClaim.selector,
+            _topic,
+            _scheme,
+            address(this),
+            _signature,
+            _data,
+            _uri
+        );
+
+        (bool success, ) = address(_identity).call(
+            abi.encodeWithSelector(
+                _identity.execute.selector,
+                address(_identity),
+                0,
+                addClaimData
+            )
+        );
+        require(success, Errors.CallFailed());
+        emit ClaimAddedTo(address(_identity), _topic, _signature, _data);
+    }
+
+    /**
      *  @dev See {IClaimIssuer-isClaimValid}.
      */
     function isClaimValid(
         IIdentity _identity,
         uint256 claimTopic,
         bytes memory sig,
-        bytes memory data)
-    public override(Identity, IClaimIssuer) view returns (bool claimValid)
-    {
+        bytes memory data
+    ) public view override(Identity, IClaimIssuer) returns (bool claimValid) {
         bytes32 dataHash = keccak256(abi.encode(_identity, claimTopic, data));
         // Use abi.encodePacked to concatenate the message prefix and the message to sign.
-        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash));
+        bytes32 prefixedHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)
+        );
 
         // Recover address of data signer
         address recovered = getRecoveredAddress(sig, prefixedHash);
