@@ -2,85 +2,197 @@
 pragma solidity 0.8.27;
 
 import {ITopicIdMapping} from "./interface/ITopicIdMapping.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { Errors } from "./libraries/Errors.sol";
 
-/// @notice This contract is used to map a claim topic id to its name and format
-/** @dev this contract stores and returns the names for different topics
+/**
+ * @title TopicIdMapping
+ * @notice Contract for registering and retrieving structured topic schemas using encoded string arrays.
+ * @dev Inherits from AccessControl and supports UUPS upgrades. Topics define field names and types using ABI-encoded `string[]` arrays.
  */
 contract TopicIdMapping is
-    UUPSUpgradeable,
-    OwnableUpgradeable,
-    ITopicIdMapping
+    ITopicIdMapping,
+    AccessControlUpgradeable,
+    UUPSUpgradeable
 {
-    mapping(uint256 => Topic) private _topicToInfo;
+    /// @notice Role identifier for accounts allowed to manage topics
+    bytes32 public constant TOPIC_MANAGER_ROLE =
+        keccak256("TOPIC_MANAGER_ROLE");
 
-    /// @notice Prevents anyone from calling `initialize` on the logic contract
+    /// @dev Mapping from topic ID to Topic struct
+    mapping(uint256 => Topic) private _topics;
+
+    /// @notice Disables initializers on the implementation contract
     constructor() {
         _disableInitializers();
     }
 
-    function initialize() external initializer {
-        __Ownable_init();
+    /**
+     * @notice Initializes the contract and sets the admin and topic manager roles.
+     * @param admin Address to receive DEFAULT_ADMIN_ROLE and TOPIC_MANAGER_ROLE
+     */
+    function initialize(address admin) external initializer {
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(TOPIC_MANAGER_ROLE, admin);
     }
 
-    /// @notice Adds a new topic with its format and name
-    /// @param _topic The unique identifier for the topic
-    /// @param _format The format identifier for the topic
-    /// @param _name The name of the topic
+    /**
+     * @inheritdoc ITopicIdMapping
+     */
     function addTopic(
-        uint256 _topic,
-        uint256 _format,
-        string memory _name
-    ) external override onlyOwner {
-        require(_topic != 0, Errors.EmptyTopic());
-        require(_format != 0, Errors.EmptyFormat());
-        require(bytes(_name).length > 0, Errors.EmptyName());
-        require(_topicToInfo[_topic].format == 0, Errors.TopicAlreadyExists(_topic));
-        _topicToInfo[_topic] = Topic({format: _format, name: _name});
+        uint256 topicId,
+        string calldata name,
+        bytes calldata encodedFieldNames,
+        bytes calldata encodedFieldTypes
+    ) external override onlyRole(TOPIC_MANAGER_ROLE) {
+        require(bytes(name).length > 0, "Empty topic name");
+        require(
+            _topics[topicId].encodedFieldNames.length == 0,
+            "Topic already exists"
+        );
+        _validateFieldArrays(encodedFieldNames, encodedFieldTypes);
 
-        emit TopicAdded(_topic, _format, _name);
+        _topics[topicId] = Topic({
+            name: name,
+            encodedFieldNames: encodedFieldNames,
+            encodedFieldTypes: encodedFieldTypes
+        });
+
+        emit TopicAdded(topicId, name, encodedFieldNames, encodedFieldTypes);
     }
 
-    /// @notice Updates an existing topic's format and name
-    /// @param _topic The unique identifier of the topic to update
-    /// @param _format The new format identifier for the topic
-    /// @param _name The new name for the topic
+    /**
+     * @inheritdoc ITopicIdMapping
+     */
     function updateTopic(
-        uint256 _topic,
-        uint256 _format,
-        string memory _name
-    ) external override onlyOwner {
-        require(_topicToInfo[_topic].format != 0, Errors.TopicNotFound(_topic));
-        require(_format != 0, Errors.EmptyFormat());
-        require(bytes(_name).length > 0, Errors.EmptyName());
-        _topicToInfo[_topic] = Topic({format: _format, name: _name});
+        uint256 topicId,
+        string calldata name,
+        bytes calldata encodedFieldNames,
+        bytes calldata encodedFieldTypes
+    ) external override onlyRole(TOPIC_MANAGER_ROLE) {
+        require(
+            _topics[topicId].encodedFieldNames.length != 0,
+            "Topic does not exist"
+        );
+        require(bytes(name).length > 0, "Empty topic name");
+        _validateFieldArrays(encodedFieldNames, encodedFieldTypes);
 
-        emit TopicChanged(_topic, _format, _name);
+        _topics[topicId] = Topic({
+            name: name,
+            encodedFieldNames: encodedFieldNames,
+            encodedFieldTypes: encodedFieldTypes
+        });
+
+        emit TopicUpdated(topicId, name, encodedFieldNames, encodedFieldTypes);
     }
 
-    /// @notice Removes a topic from the mapping
-    /// @param _topic The unique identifier of the topic to remove
-    function removeTopic(uint256 _topic) external override onlyOwner {
-        require(_topicToInfo[_topic].format != 0, Errors.TopicNotFound(_topic));
-        delete _topicToInfo[_topic];
-        emit TopicRemoved(_topic);
+    /**
+     * @inheritdoc ITopicIdMapping
+     */
+    function removeTopic(
+        uint256 topicId
+    ) external override onlyRole(TOPIC_MANAGER_ROLE) {
+        require(
+            _topics[topicId].encodedFieldNames.length != 0,
+            "Topic does not exist"
+        );
+        delete _topics[topicId];
+        emit TopicRemoved(topicId);
     }
 
-    /// @notice Returns the topic information for a given topic ID
-    /// @param _topic The unique identifier of the topic to query
-    /// @return The Topic struct containing topic info
-    function topicInfo(
-        uint256 _topic
+    /**
+     * @inheritdoc ITopicIdMapping
+     */
+    function getTopic(
+        uint256 topicId
     ) external view override returns (Topic memory) {
-        return _topicToInfo[_topic];
+        require(
+            _topics[topicId].encodedFieldNames.length != 0,
+            "Topic not found"
+        );
+        return _topics[topicId];
     }
 
-    function _authorizeUpgrade(
-        address _newImplementation
-    ) internal override onlyOwner {}
+    /**
+     * @inheritdoc ITopicIdMapping
+     */
+    function getSchema(
+        uint256 topicId
+    )
+        external
+        view
+        override
+        returns (string[] memory fieldNames, string[] memory fieldTypes)
+    {
+        require(
+            _topics[topicId].encodedFieldNames.length != 0,
+            "Topic not found"
+        );
+        fieldNames = abi.decode(_topics[topicId].encodedFieldNames, (string[]));
+        fieldTypes = abi.decode(_topics[topicId].encodedFieldTypes, (string[]));
+    }
 
-    // leave space for future variables
+    /**
+     * @notice Returns decoded field names for a given topic ID
+     * @param topicId The ID of the topic
+     * @return string[] Array of field names
+     */
+    function getFieldNames(
+        uint256 topicId
+    ) external view returns (string[] memory) {
+        require(
+            _topics[topicId].encodedFieldNames.length != 0,
+            "Topic not found"
+        );
+        return abi.decode(_topics[topicId].encodedFieldNames, (string[]));
+    }
+
+    /**
+     * @notice Returns decoded field types for a given topic ID
+     * @param topicId The ID of the topic
+     * @return string[] Array of field types
+     */
+    function getFieldTypes(
+        uint256 topicId
+    ) external view returns (string[] memory) {
+        require(
+            _topics[topicId].encodedFieldTypes.length != 0,
+            "Topic not found"
+        );
+        return abi.decode(_topics[topicId].encodedFieldTypes, (string[]));
+    }
+
+    /**
+     * @dev Validates that encoded field names/types match in length and content.
+     * @param encodedNames ABI-encoded string[] of field names
+     * @param encodedTypes ABI-encoded string[] of field types
+     */
+    function _validateFieldArrays(
+        bytes memory encodedNames,
+        bytes memory encodedTypes
+    ) internal pure {
+        string[] memory names = abi.decode(encodedNames, (string[]));
+        string[] memory types_ = abi.decode(encodedTypes, (string[]));
+        require(
+            names.length == types_.length,
+            "Field name/type count mismatch"
+        );
+
+        for (uint256 i = 0; i < names.length; i++) {
+            require(bytes(names[i]).length > 0, "Empty field name");
+            require(bytes(types_[i]).length > 0, "Empty field type");
+        }
+    }
+
+    /**
+     * @dev Required override for UUPS upgradability authorization
+     * @param newImplementation Address of the new implementation
+     */
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    /// @dev Reserved storage space to allow future layout changes
     uint256[50] private __gap;
 }

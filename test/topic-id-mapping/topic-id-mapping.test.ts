@@ -1,218 +1,249 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
 
+const abi = ethers.AbiCoder.defaultAbiCoder();
+
 describe("TopicIdMapping", () => {
-    const TEST_TOPIC_ID = 10101000100000;
-    const TEST_TOPIC_NAME = "INDIVIDUAL_INVESTOR";
-    const TEST_TOPIC_FORMAT = 1;
+  let contract: any;
+  let proxy: any;
+  let implementation: any;
+  let admin: any;
 
-    let implementation: any;
-    let proxy: any;
-    let topicIdMapping: any;
-    let topicIdMappingProxy: any;
+  beforeEach(async () => {
+    const [deployer] = await ethers.getSigners();
+    admin = deployer;
 
-    beforeEach(async () => {
-        // Deploy implementation
-        const TopicIdMapping = await ethers.getContractFactory("TopicIdMapping");
-        implementation = await TopicIdMapping.deploy();
-        await implementation.waitForDeployment();
+    // Deploy implementation
+    const ImplFactory = await ethers.getContractFactory("TopicIdMapping");
+    implementation = await ImplFactory.deploy();
+    await implementation.waitForDeployment();
 
-        // Deploy proxy
-        const TopicIdMappingProxy = await ethers.getContractFactory("TopicIdMappingProxy");
-        proxy = await TopicIdMappingProxy.deploy(
-            await implementation.getAddress(),
-            implementation.interface.encodeFunctionData("initialize")
-        );
-        await proxy.waitForDeployment();
+    // Deploy proxy
+    const ProxyFactory = await ethers.getContractFactory("TopicIdMappingProxy");
+    proxy = await ProxyFactory.deploy(
+      await implementation.getAddress(),
+      implementation.interface.encodeFunctionData("initialize", [
+        admin.address,
+      ]),
+    );
+    await proxy.waitForDeployment();
 
-        // Get proxy contract with implementation ABI
-        topicIdMapping = TopicIdMapping.attach(await proxy.getAddress());
-        // Get proxy contract with proxy ABI
-        topicIdMappingProxy = TopicIdMappingProxy.attach(await proxy.getAddress());
+    contract = ImplFactory.attach(await proxy.getAddress());
+  });
+
+  describe("Topic schema examples from AssetID spec", () => {
+    it("should allow adding and retrieving the NAV Per Share topic (1000003)", async () => {
+      const topicId = 1000003;
+      const name = "NAV Per Share";
+      const fieldNames = ["value", "decimals", "timestamp"];
+      const fieldTypes = ["uint256", "uint256", "uint256"];
+      const encodedNames = abi.encode(["string[]"], [fieldNames]);
+      const encodedTypes = abi.encode(["string[]"], [fieldTypes]);
+
+      await expect(contract.addTopic(topicId, name, encodedNames, encodedTypes))
+        .to.emit(contract, "TopicAdded")
+        .withArgs(topicId, name, encodedNames, encodedTypes);
+
+      const schema = await contract.getSchema(topicId);
+      expect(schema[0]).to.deep.equal(fieldNames);
+      expect(schema[1]).to.deep.equal(fieldTypes);
     });
 
-    describe("Proxy functionality", () => {
-        it("should allow owner to upgrade implementation", async () => {
-            const [deployerWallet] = await ethers.getSigners();
+    it("should allow adding the ISIN topic (1000001)", async () => {
+      const topicId = 1000001;
+      const name = "ISIN";
+      const fieldNames = ["isin"];
+      const fieldTypes = ["string"];
+      const encodedNames = abi.encode(["string[]"], [fieldNames]);
+      const encodedTypes = abi.encode(["string[]"], [fieldTypes]);
 
-            // Deploy new implementation
-            const TopicIdMapping = await ethers.getContractFactory("TopicIdMapping");
-            const newImplementation = await TopicIdMapping.deploy();
-            await newImplementation.waitForDeployment();
+      await contract.addTopic(topicId, name, encodedNames, encodedTypes);
 
-            // Upgrade implementation
-            await expect(
-                topicIdMapping.connect(deployerWallet).upgradeToAndCall(await newImplementation.getAddress(), "0x")
-            ).to.not.be.reverted;
-        });
-
-        it("should not allow non-owner to upgrade implementation", async () => {
-            const [, otherWallet] = await ethers.getSigners();
-
-            // Deploy new implementation
-            const TopicIdMapping = await ethers.getContractFactory("TopicIdMapping");
-            const newImplementation = await TopicIdMapping.deploy();
-            await newImplementation.waitForDeployment();
-
-            // Try to upgrade implementation
-            await expect(
-                topicIdMapping.connect(otherWallet).upgradeToAndCall(await newImplementation.getAddress(), "0x")
-            ).to.be.revertedWith("Ownable: caller is not the owner");
-        });
+      const schema = await contract.getSchema(topicId);
+      expect(schema[0]).to.deep.equal(fieldNames);
+      expect(schema[1]).to.deep.equal(fieldTypes);
     });
 
-    it("should deploy and initialize", async () => {
-        expect(await topicIdMapping.getAddress()).to.not.be.undefined;
+    it("should allow adding the Qualification URL topic (1000006)", async () => {
+      const topicId = 1000006;
+      const name = "Qualification URL";
+      const fieldNames = ["urls"];
+      const fieldTypes = ["string[]"];
+      const encodedNames = abi.encode(["string[]"], [fieldNames]);
+      const encodedTypes = abi.encode(["string[]"], [fieldTypes]);
+
+      await contract.addTopic(topicId, name, encodedNames, encodedTypes);
+
+      const schema = await contract.getSchema(topicId);
+      expect(schema[0]).to.deep.equal(fieldNames);
+      expect(schema[1]).to.deep.equal(fieldTypes);
+    });
+  });
+
+  describe("Validation and permissioning", () => {
+    it("should not allow adding topic with mismatched names/types", async () => {
+      const topicId = 1234;
+      const name = "BrokenTopic";
+      const encodedNames = abi.encode(["string[]"], [["field1"]]);
+      const encodedTypes = abi.encode(["string[]"], [["uint256", "uint8"]]);
+
+      await expect(
+        contract.addTopic(topicId, name, encodedNames, encodedTypes),
+      ).to.be.revertedWith("Field name/type count mismatch");
     });
 
-    it("deployer should be owner", async () => {
-        const [deployerWallet] = await ethers.getSigners();
-        expect(await topicIdMapping.owner()).to.equal(deployerWallet.address);
+    it("should not allow non-TOPIC_MANAGER_ROLE to add topics", async () => {
+      const [, unauthorized] = await ethers.getSigners();
+
+      const topicId = 1000002;
+      const name = "LEI";
+      const encodedNames = abi.encode(["string[]"], [["lei"]]);
+      const encodedTypes = abi.encode(["string[]"], [["string"]]);
+
+      await expect(
+        contract
+          .connect(unauthorized)
+          .addTopic(topicId, name, encodedNames, encodedTypes),
+      ).to.be.revertedWith(
+        `AccessControl: account ${unauthorized.address.toLowerCase()} is missing role ${await contract.TOPIC_MANAGER_ROLE()}`,
+      );
     });
+  });
+});
 
-    it("only owner can add/modify topic", async () => {
-        const [deployerWallet, otherWallet] = await ethers.getSigners();
+describe("TopicIdMapping adding topics", () => {
+  let contract: any;
+  let proxy: any;
+  let implementation: any;
+  let admin: any;
 
-        // Test that non-owner cannot add topic
+  beforeEach(async () => {
+    const [deployer] = await ethers.getSigners();
+    admin = deployer;
+
+    const ImplFactory = await ethers.getContractFactory("TopicIdMapping");
+    implementation = await ImplFactory.deploy();
+    await implementation.waitForDeployment();
+
+    const ProxyFactory = await ethers.getContractFactory("TopicIdMappingProxy");
+    proxy = await ProxyFactory.deploy(
+      await implementation.getAddress(),
+      implementation.interface.encodeFunctionData("initialize", [
+        admin.address,
+      ]),
+    );
+    await proxy.waitForDeployment();
+
+    contract = ImplFactory.attach(await proxy.getAddress());
+  });
+
+  describe("Topic schema examples from AssetID spec", () => {
+    const topics = [
+      {
+        id: 1000001,
+        name: "ISIN",
+        fields: ["isin"],
+        types: ["string"],
+        example: ["US1234567890"],
+      },
+      {
+        id: 1000002,
+        name: "LEI",
+        fields: ["lei"],
+        types: ["string"],
+        example: ["5493001KJTIIGC8Y1R12"],
+      },
+      {
+        id: 1000003,
+        name: "NAV Per Share",
+        fields: ["value", "decimals", "timestamp"],
+        types: ["uint256", "uint256", "uint256"],
+        example: [ethers.toBigInt(1000000), 6, Math.floor(Date.now() / 1000)],
+      },
+      {
+        id: 1000004,
+        name: "NAV Global",
+        fields: ["value", "decimals", "timestamp"],
+        types: ["uint256", "uint256", "uint256"],
+        example: [ethers.toBigInt(150000000), 6, Math.floor(Date.now() / 1000)],
+      },
+      {
+        id: 1000005,
+        name: "Base Currency",
+        fields: ["currencyCode"],
+        types: ["uint16"],
+        example: [840], // USD (ISO 4217)
+      },
+      {
+        id: 1000006,
+        name: "Qualification URL",
+        fields: ["urls"],
+        types: ["string[]"],
+        example: [["https://example.com/kyc", "https://verify.assetid.xyz"]],
+      },
+      {
+        id: 1000007,
+        name: "ERC3643 Certificate",
+        fields: ["issuer"],
+        types: ["address"],
+        example: ["0x000000000000000000000000000000000000dEaD"],
+      },
+    ];
+
+    for (const topic of topics) {
+      it(`should add and decode schema and data for topic ${topic.id} (${topic.name})`, async () => {
+        const encodedNames = abi.encode(["string[]"], [topic.fields]);
+        const encodedTypes = abi.encode(["string[]"], [topic.types]);
+
         await expect(
-            topicIdMapping.connect(otherWallet).addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME)
-        ).to.be.revertedWith("Ownable: caller is not the owner");
-
-        // Test that owner can add topic
-        await expect(
-            topicIdMapping
-                .connect(deployerWallet)
-                .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME)
-        ).to.not.be.reverted;
-
-        // Verify msg.sender is preserved through delegatecall
-        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
-        expect(topicInfo.name).to.equal(TEST_TOPIC_NAME);
-        expect(topicInfo.format).to.equal(TEST_TOPIC_FORMAT);
-    });
-
-    it("should emit TopicAdded event with correct data", async () => {
-        const [deployerWallet] = await ethers.getSigners();
-
-        await expect(
-            topicIdMapping
-                .connect(deployerWallet)
-                .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME)
+          contract.addTopic(topic.id, topic.name, encodedNames, encodedTypes),
         )
-            .to.emit(topicIdMapping, "TopicAdded")
-            .withArgs(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME);
+          .to.emit(contract, "TopicAdded")
+          .withArgs(topic.id, topic.name, encodedNames, encodedTypes);
+
+        const schema = await contract.getSchema(topic.id);
+        expect(schema[0]).to.deep.equal(topic.fields);
+        expect(schema[1]).to.deep.equal(topic.types);
+
+        const encodedClaim = abi.encode(topic.types, topic.example);
+        const decoded = abi.decode(topic.types, encodedClaim);
+
+        for (let i = 0; i < topic.fields.length; i++) {
+          expect(decoded[i]).to.deep.equal(topic.example[i]);
+        }
+      });
+    }
+  });
+
+  describe("Validation and permissioning", () => {
+    it("should not allow adding topic with mismatched names/types", async () => {
+      const topicId = 1234;
+      const name = "BrokenTopic";
+      const encodedNames = abi.encode(["string[]"], [["field1"]]);
+      const encodedTypes = abi.encode(["string[]"], [["uint256", "uint8"]]);
+
+      await expect(
+        contract.addTopic(topicId, name, encodedNames, encodedTypes),
+      ).to.be.revertedWith("Field name/type count mismatch");
     });
 
-    it("should emit TopicChanged event with correct data", async () => {
-        const [deployerWallet] = await ethers.getSigners();
-        const NEW_NAME = "NEW_NAME";
-        const NEW_FORMAT = 2;
+    it("should not allow non-TOPIC_MANAGER_ROLE to add topics", async () => {
+      const [, unauthorized] = await ethers.getSigners();
 
-        // Add initial topic
-        await topicIdMapping
-            .connect(deployerWallet)
-            .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME);
+      const topicId = 1000008;
+      const name = "Unauthorized Topic";
+      const encodedNames = abi.encode(["string[]"], [["someField"]]);
+      const encodedTypes = abi.encode(["string[]"], [["string"]]);
 
-        // Update topic and verify event
-        await expect(
-            topicIdMapping
-                .connect(deployerWallet)
-                .updateTopic(TEST_TOPIC_ID, NEW_FORMAT, NEW_NAME)
-        )
-            .to.emit(topicIdMapping, "TopicChanged")
-            .withArgs(TEST_TOPIC_ID, NEW_FORMAT, NEW_NAME);
+      const role = await contract.TOPIC_MANAGER_ROLE();
+
+      await expect(
+        contract
+          .connect(unauthorized)
+          .addTopic(topicId, name, encodedNames, encodedTypes),
+      ).to.be.revertedWith(
+        `AccessControl: account ${unauthorized.address.toLowerCase()} is missing role ${role}`,
+      );
     });
-
-    it("should emit TopicRemoved event with correct data", async () => {
-        const [deployerWallet] = await ethers.getSigners();
-
-        // Add topic first
-        await topicIdMapping
-            .connect(deployerWallet)
-            .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME);
-
-        // Remove topic and verify event
-        await expect(
-            topicIdMapping
-                .connect(deployerWallet)
-                .removeTopic(TEST_TOPIC_ID)
-        )
-            .to.emit(topicIdMapping, "TopicRemoved")
-            .withArgs(TEST_TOPIC_ID);
-    });
-
-    it("should set and get topic content correctly", async () => {
-        const [deployerWallet] = await ethers.getSigners();
-
-        // Add topic as owner
-        await topicIdMapping
-            .connect(deployerWallet)
-            .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME);
-
-        // Anyone can read the topic
-        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
-        expect(topicInfo.name).to.equal(TEST_TOPIC_NAME);
-        expect(topicInfo.format).to.equal(TEST_TOPIC_FORMAT);
-    });
-
-    it("should update topic correctly", async () => {
-        const [deployerWallet] = await ethers.getSigners();
-        const NEW_NAME = "NEW_NAME";
-        const NEW_FORMAT = 2;
-
-        // Add initial topic
-        await topicIdMapping
-            .connect(deployerWallet)
-            .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME);
-
-        // Update topic
-        await topicIdMapping
-            .connect(deployerWallet)
-            .updateTopic(TEST_TOPIC_ID, NEW_FORMAT, NEW_NAME);
-
-        // Verify update
-        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
-        expect(topicInfo.name).to.equal(NEW_NAME);
-        expect(topicInfo.format).to.equal(NEW_FORMAT);
-    });
-
-    it("should remove topic correctly", async () => {
-        const [deployerWallet] = await ethers.getSigners();
-
-        // Add topic first
-        await topicIdMapping
-            .connect(deployerWallet)
-            .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME);
-
-        // Remove topic
-        await topicIdMapping
-            .connect(deployerWallet)
-            .removeTopic(TEST_TOPIC_ID);
-
-        // Verify removal
-        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
-        expect(topicInfo.name).to.equal("");
-        expect(topicInfo.format).to.equal(0);
-    });
-
-    it("should preserve msg.sender through delegatecall", async () => {
-        const [deployerWallet, otherWallet] = await ethers.getSigners();
-
-        // Add topic as owner
-        await topicIdMapping
-            .connect(deployerWallet)
-            .addTopic(TEST_TOPIC_ID, TEST_TOPIC_FORMAT, TEST_TOPIC_NAME);
-
-        // Try to update as non-owner (should fail)
-        await expect(
-            topicIdMapping
-                .connect(otherWallet)
-                .updateTopic(TEST_TOPIC_ID, 2, "NEW_NAME")
-        ).to.be.revertedWith("Ownable: caller is not the owner");
-
-        // Verify topic wasn't changed
-        const topicInfo = await topicIdMapping.topicInfo(TEST_TOPIC_ID);
-        expect(topicInfo.name).to.equal(TEST_TOPIC_NAME);
-        expect(topicInfo.format).to.equal(TEST_TOPIC_FORMAT);
-    });
+  });
 });
