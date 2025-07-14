@@ -4,6 +4,8 @@ pragma solidity 0.8.27;
 import {ITopicIdMapping} from "./interface/ITopicIdMapping.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {IIdentity} from "./interface/IIdentity.sol";
+import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
 
 /**
  * @title TopicIdMapping
@@ -19,8 +21,10 @@ contract TopicIdMapping is
     bytes32 public constant TOPIC_MANAGER_ROLE =
         keccak256("TOPIC_MANAGER_ROLE");
 
-    /// @dev Mapping from topic ID to Topic struct
-    mapping(uint256 => Topic) private _topics;
+    /// @dev Mapping from topic ID to TopicInfo struct
+    mapping(uint256 => TopicInfo) private _topics;
+
+  
 
     /// @notice Disables initializers on the implementation contract
     constructor() {
@@ -53,7 +57,7 @@ contract TopicIdMapping is
         );
         _validateFieldArrays(encodedFieldNames, encodedFieldTypes);
 
-        _topics[topicId] = Topic({
+        _topics[topicId] = TopicInfo({
             name: name,
             encodedFieldNames: encodedFieldNames,
             encodedFieldTypes: encodedFieldTypes
@@ -78,7 +82,7 @@ contract TopicIdMapping is
         require(bytes(name).length > 0, "Empty topic name");
         _validateFieldArrays(encodedFieldNames, encodedFieldTypes);
 
-        _topics[topicId] = Topic({
+        _topics[topicId] = TopicInfo({
             name: name,
             encodedFieldNames: encodedFieldNames,
             encodedFieldTypes: encodedFieldTypes
@@ -106,11 +110,7 @@ contract TopicIdMapping is
      */
     function getTopic(
         uint256 topicId
-    ) external view override returns (Topic memory) {
-        require(
-            _topics[topicId].encodedFieldNames.length != 0,
-            "Topic not found"
-        );
+    ) external view override returns (TopicInfo memory) {
         return _topics[topicId];
     }
 
@@ -125,10 +125,9 @@ contract TopicIdMapping is
         override
         returns (string[] memory fieldNames, string[] memory fieldTypes)
     {
-        require(
-            _topics[topicId].encodedFieldNames.length != 0,
-            "Topic not found"
-        );
+        if (_topics[topicId].encodedFieldNames.length == 0) {
+            return (new string[](0), new string[](0));
+        }
         fieldNames = abi.decode(_topics[topicId].encodedFieldNames, (string[]));
         fieldTypes = abi.decode(_topics[topicId].encodedFieldTypes, (string[]));
     }
@@ -141,10 +140,9 @@ contract TopicIdMapping is
     function getFieldNames(
         uint256 topicId
     ) external view returns (string[] memory) {
-        require(
-            _topics[topicId].encodedFieldNames.length != 0,
-            "Topic not found"
-        );
+        if (_topics[topicId].encodedFieldNames.length == 0) {
+            return new string[](0);
+        }
         return abi.decode(_topics[topicId].encodedFieldNames, (string[]));
     }
 
@@ -156,33 +154,95 @@ contract TopicIdMapping is
     function getFieldTypes(
         uint256 topicId
     ) external view returns (string[] memory) {
-        require(
-            _topics[topicId].encodedFieldTypes.length != 0,
-            "Topic not found"
-        );
+        if (_topics[topicId].encodedFieldTypes.length == 0) {
+            return new string[](0);
+        }
         return abi.decode(_topics[topicId].encodedFieldTypes, (string[]));
     }
 
     /**
-     * @notice Returns an array of Topic structs for the given topic IDs
-     * @param topicIds Array of topic IDs to get Topic structs for
-     * @return Topic[] Array of Topic structs corresponding to the input topic IDs
+     * @notice Returns an array of TopicInfo structs for the given topic IDs
+     * @param topicIds Array of topic IDs to get TopicInfo structs for
+     * @return TopicInfo[] Array of TopicInfo structs corresponding to the input topic IDs
      */
     function getTopics(
         uint256[] calldata topicIds
-    ) external view returns (Topic[] memory) {
-        Topic[] memory topics = new Topic[](topicIds.length);
-        
+    ) external view returns (TopicInfo[] memory) {
+        TopicInfo[] memory topics = new TopicInfo[](topicIds.length);
         for (uint256 i = 0; i < topicIds.length; i++) {
-            Topic storage persistedTopic = _topics[topicIds[i]];
-            require(
-                persistedTopic.encodedFieldNames.length != 0,
-                "Topic not found"
-            );
-            topics[i] = persistedTopic;
+            topics[i] = _topics[topicIds[i]];
         }
-
         return topics;
+    }
+
+    /**
+     * @notice Gets comprehensive claim information for an identity across multiple topics
+     * @param identity The identity contract address
+     * @param topicIds Array of topic IDs to check
+     * @return result Array of claim information structs
+     */
+    function getClaimsWithTopicInfo(
+        address identity,
+        uint256[] calldata topicIds
+    ) external view returns (ClaimInfo[] memory result) {
+        uint256 totalClaims = _countTotalClaims(identity, topicIds);
+        result = new ClaimInfo[](totalClaims);
+        uint256 resultIndex = 0;
+
+        for (uint256 i = 0; i < topicIds.length; i++) {
+            uint256 topicId = topicIds[i];
+            TopicInfo memory topicInfo = _topics[topicId];
+            bytes32[] memory claimIds = IIdentity(identity).getClaimIdsByTopic(topicId);
+            for (uint256 j = 0; j < claimIds.length; j++) {
+                result[resultIndex] = _buildClaimInfo(identity, topicId, topicInfo, claimIds[j]);
+                resultIndex++;
+            }
+        }
+    }
+
+    function _countTotalClaims(address identity, uint256[] calldata topicIds) internal view returns (uint256 total) {
+        for (uint256 i = 0; i < topicIds.length; i++) {
+            bytes32[] memory claimIds = IIdentity(identity).getClaimIdsByTopic(topicIds[i]);
+            total += claimIds.length;
+        }
+    }
+
+    function _isClaimValid(address identity, uint256 topicId, address issuer, bytes memory signature, bytes memory data) internal view returns (bool) {
+        if (issuer == address(0)) return false;
+        try IClaimIssuer(issuer).isClaimValid(IIdentity(identity), topicId, signature, data) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function _buildClaimInfo(
+        address identity,
+        uint256 topicId,
+        TopicInfo memory topicInfo,
+        bytes32 claimId
+    ) internal view returns (ClaimInfo memory info) {
+        (
+            , // topic - not used
+            uint256 scheme,
+            address issuer,
+            bytes memory signature,
+            bytes memory data,
+            string memory uri
+        ) = IIdentity(identity).getClaim(claimId);
+
+        bool isValid = _isClaimValid(identity, topicId, issuer, signature, data);
+        
+        info = ClaimInfo({
+            topic: topicInfo,
+            isValid: isValid,
+            claimId: claimId,
+            scheme: scheme,
+            issuer: issuer,
+            signature: signature,
+            data: data,
+            uri: uri
+        });
     }
 
     /**
@@ -206,6 +266,8 @@ contract TopicIdMapping is
             require(bytes(types_[i]).length > 0, "Empty field type");
         }
     }
+
+   
 
     /**
      * @dev Required override for UUPS upgradability authorization

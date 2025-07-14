@@ -11,12 +11,22 @@ interface ITopicIdMapping {
      * @param encodedFieldNames ABI-encoded string array representing field names
      * @param encodedFieldTypes ABI-encoded string array representing field types (e.g. "uint256", "string[]")
      */
-    struct Topic {
+    struct TopicInfo {
         string name;
         bytes encodedFieldNames;
         bytes encodedFieldTypes;
     }
 
+    struct ClaimInfo {
+        TopicInfo topic;
+        bool isValid;
+        bytes32 claimId;
+        uint256 scheme;
+        address issuer;
+        bytes signature;
+        bytes data;
+        string uri;
+    }
     /**
      * @notice Emitted when a new topic is added to the registry
      * @param topicId The unique identifier for the topic
@@ -86,13 +96,13 @@ interface ITopicIdMapping {
     function removeTopic(uint256 topicId) external;
 
     /**
-     * @notice Retrieves the raw Topic struct associated with a given topic ID
+     * @notice Retrieves the raw TopicInfo struct associated with a given topic ID
      * @param topicId The ID of the topic to retrieve
-     * @return topic The full Topic struct containing the name, encoded field names, and types
+     * @return topic The full TopicInfo struct containing the name, encoded field names, and types
      */
     function getTopic(
         uint256 topicId
-    ) external view returns (Topic memory topic);
+    ) external view returns (TopicInfo memory topic);
 
     /**
      * @notice Returns the decoded schema of a topic
@@ -108,11 +118,11 @@ interface ITopicIdMapping {
         returns (string[] memory fieldNames, string[] memory fieldTypes);
 
     /**
-     * @notice Returns an array of Topic structs for the given topic IDs
-     * @param topicIds Array of topic IDs to get Topic structs for
-     * @return Topic[] Array of Topic structs corresponding to the input topic IDs
+     * @notice Returns an array of TopicInfo structs for the given topic IDs
+     * @param topicIds Array of topic IDs to get TopicInfo structs for
+     * @return TopicInfo[] Array of TopicInfo structs corresponding to the input topic IDs
      */
     function getTopics(
         uint256[] calldata topicIds
-    ) external view returns (Topic[] memory);
+    ) external view returns (TopicInfo[] memory);
 }

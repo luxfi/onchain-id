@@ -283,3 +283,215 @@ describe("TopicIdMapping adding topics", () => {
     );
   });
 });
+
+describe("TopicIdMapping getClaimsWithTopicInfo", () => {
+  let contract: any;
+  let proxy: any;
+  let implementation: any;
+  let admin: any;
+  let identity: any;
+  let claimIssuer: any;
+
+  beforeEach(async () => {
+    const [deployer, claimIssuerWallet, aliceWallet] =
+      await ethers.getSigners();
+    admin = deployer;
+
+    // Deploy TopicIdMapping
+    const ImplFactory = await ethers.getContractFactory("TopicIdMapping");
+    implementation = await ImplFactory.deploy();
+    await implementation.waitForDeployment();
+
+    const ProxyFactory = await ethers.getContractFactory("TopicIdMappingProxy");
+    proxy = await ProxyFactory.deploy(
+      await implementation.getAddress(),
+      implementation.interface.encodeFunctionData("initialize", [
+        admin.address,
+      ]),
+    );
+    await proxy.waitForDeployment();
+
+    contract = ImplFactory.attach(await proxy.getAddress());
+
+    // Deploy ClaimIssuer
+    const ClaimIssuerFactory = await ethers.getContractFactory("ClaimIssuer");
+    claimIssuer = await ClaimIssuerFactory.deploy(claimIssuerWallet.address);
+    await claimIssuer.waitForDeployment();
+
+    // Deploy Identity using the factory pattern
+    const Identity = await ethers.getContractFactory("Identity");
+    const identityImplementation = await Identity.deploy(
+      deployer.address,
+      true,
+    );
+
+    const ImplementationAuthority = await ethers.getContractFactory(
+      "ImplementationAuthority",
+    );
+    const implementationAuthority = await ImplementationAuthority.deploy(
+      identityImplementation.target,
+    );
+
+    const IdFactory = await ethers.getContractFactory("IdFactory");
+    const identityFactory = await IdFactory.deploy(
+      implementationAuthority.target,
+    );
+
+    await identityFactory.createIdentity(aliceWallet.address, "test");
+    const identityAddress = await identityFactory.getIdentity(
+      aliceWallet.address,
+    );
+    identity = await ethers.getContractAt("Identity", identityAddress);
+  });
+
+  it("should return claim information with topic info for given identity and topic IDs", async () => {
+    const [deployer, claimIssuerWallet, aliceWallet] =
+      await ethers.getSigners();
+
+    // Add topics to the mapping
+    const topics = [
+      { id: 1001, name: "KYC", fieldNames: ["status"], fieldTypes: ["string"] },
+      { id: 1002, name: "AML", fieldNames: ["level"], fieldTypes: ["uint8"] },
+    ];
+
+    for (const topic of topics) {
+      const encodedFieldNames = abi.encode(["string[]"], [topic.fieldNames]);
+      const encodedFieldTypes = abi.encode(["string[]"], [topic.fieldTypes]);
+      await contract.addTopic(
+        topic.id,
+        topic.name,
+        encodedFieldNames,
+        encodedFieldTypes,
+      );
+    }
+
+    // Add claim signer key to the claim issuer
+    await claimIssuer.connect(claimIssuerWallet).addKey(
+      ethers.keccak256(abi.encode(["address"], [claimIssuerWallet.address])),
+      3, // CLAIM_SIGNER
+      1, // ECDSA
+    );
+
+    // Add claim signer key to the identity
+    await identity.connect(aliceWallet).addKey(
+      ethers.keccak256(abi.encode(["address"], [aliceWallet.address])),
+      3, // CLAIM_SIGNER
+      1, // ECDSA
+    );
+
+    // Create and add claims to the identity
+    const claimData1 = abi.encode(["string"], ["verified"]);
+    const claimData2 = abi.encode(["uint8"], [2]); // AML level 2
+
+    const claim1: any = {
+      topic: 1001,
+      scheme: 1,
+      issuer: claimIssuer.target,
+      data: claimData1,
+      uri: "https://example.com/kyc",
+    };
+
+    const claim2: any = {
+      topic: 1002,
+      scheme: 1,
+      issuer: claimIssuer.target,
+      data: claimData2,
+      uri: "https://example.com/aml",
+    };
+
+    // Sign the claims
+    const hash1 = ethers.keccak256(
+      abi.encode(
+        ["address", "uint256", "bytes"],
+        [identity.target, claim1.topic, claim1.data],
+      ),
+    );
+    const hash2 = ethers.keccak256(
+      abi.encode(
+        ["address", "uint256", "bytes"],
+        [identity.target, claim2.topic, claim2.data],
+      ),
+    );
+
+    claim1.signature = await claimIssuerWallet.signMessage(
+      ethers.getBytes(hash1),
+    );
+    claim2.signature = await claimIssuerWallet.signMessage(
+      ethers.getBytes(hash2),
+    );
+
+    // Add claims to identity
+    await identity
+      .connect(aliceWallet)
+      .addClaim(
+        claim1.topic,
+        claim1.scheme,
+        claim1.issuer,
+        claim1.signature,
+        claim1.data,
+        claim1.uri,
+      );
+
+    await identity
+      .connect(aliceWallet)
+      .addClaim(
+        claim2.topic,
+        claim2.scheme,
+        claim2.issuer,
+        claim2.signature,
+        claim2.data,
+        claim2.uri,
+      );
+
+    // Call getClaimsWithTopicInfo
+    const topicIds = [1001, 1002];
+    const result = await contract.getClaimsWithTopicInfo(
+      identity.target,
+      topicIds,
+    );
+
+    // Verify the structure and values of the result
+    expect(Array.isArray(result)).to.be.true;
+    expect(result.length).to.equal(2);
+
+    // Verify first claim (KYC)
+    const kycClaim = result.find((claim: any) => claim.topic.name === "KYC");
+    expect(kycClaim).to.not.be.undefined;
+    expect(kycClaim.isValid).to.be.true;
+    expect(kycClaim.scheme).to.equal(1);
+    expect(kycClaim.issuer).to.equal(claimIssuer.target);
+    expect(kycClaim.signature).to.equal(claim1.signature);
+    expect(kycClaim.data).to.equal(claimData1);
+    expect(kycClaim.uri).to.equal("https://example.com/kyc");
+    expect(kycClaim.topic.name).to.equal("KYC");
+    expect(kycClaim.topic.encodedFieldNames).to.equal(
+      abi.encode(["string[]"], [["status"]]),
+    );
+    expect(kycClaim.topic.encodedFieldTypes).to.equal(
+      abi.encode(["string[]"], [["string"]]),
+    );
+    // Decode and verify KYC claim data
+    const decodedKycData = abi.decode(["string"], kycClaim.data);
+    expect(decodedKycData[0]).to.equal("verified");
+
+    // Verify second claim (AML)
+    const amlClaim = result.find((claim: any) => claim.topic.name === "AML");
+    expect(amlClaim).to.not.be.undefined;
+    expect(amlClaim.isValid).to.be.true;
+    expect(amlClaim.scheme).to.equal(1);
+    expect(amlClaim.issuer).to.equal(claimIssuer.target);
+    expect(amlClaim.signature).to.equal(claim2.signature);
+    expect(amlClaim.data).to.equal(claimData2);
+    expect(amlClaim.uri).to.equal("https://example.com/aml");
+    expect(amlClaim.topic.name).to.equal("AML");
+    expect(amlClaim.topic.encodedFieldNames).to.equal(
+      abi.encode(["string[]"], [["level"]]),
+    );
+    expect(amlClaim.topic.encodedFieldTypes).to.equal(
+      abi.encode(["string[]"], [["uint8"]]),
+    );
+    // Decode and verify AML claim data
+    const decodedAmlData = abi.decode(["uint8"], amlClaim.data);
+    expect(decodedAmlData[0]).to.equal(2);
+  });
+});
