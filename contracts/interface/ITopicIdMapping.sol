@@ -106,4 +106,13 @@ interface ITopicIdMapping {
         external
         view
         returns (string[] memory fieldNames, string[] memory fieldTypes);
+
+    /**
+     * @notice Returns an array of Topic structs for the given topic IDs
+     * @param topicIds Array of topic IDs to get Topic structs for
+     * @return Topic[] Array of Topic structs corresponding to the input topic IDs
+     */
+    function getTopics(
+        uint256[] calldata topicIds
+    ) external view returns (Topic[] memory);
 }

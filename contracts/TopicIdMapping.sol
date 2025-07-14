@@ -164,6 +164,28 @@ contract TopicIdMapping is
     }
 
     /**
+     * @notice Returns an array of Topic structs for the given topic IDs
+     * @param topicIds Array of topic IDs to get Topic structs for
+     * @return Topic[] Array of Topic structs corresponding to the input topic IDs
+     */
+    function getTopics(
+        uint256[] calldata topicIds
+    ) external view returns (Topic[] memory) {
+        Topic[] memory topics = new Topic[](topicIds.length);
+        
+        for (uint256 i = 0; i < topicIds.length; i++) {
+            Topic storage persistedTopic = _topics[topicIds[i]];
+            require(
+                persistedTopic.encodedFieldNames.length != 0,
+                "Topic not found"
+            );
+            topics[i] = persistedTopic;
+        }
+
+        return topics;
+    }
+
+    /**
      * @dev Validates that encoded field names/types match in length and content.
      * @param encodedNames ABI-encoded string[] of field names
      * @param encodedTypes ABI-encoded string[] of field types

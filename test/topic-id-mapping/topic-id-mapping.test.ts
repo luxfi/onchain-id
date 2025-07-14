@@ -246,4 +246,40 @@ describe("TopicIdMapping adding topics", () => {
       );
     });
   });
+
+  it("returns an array of Topic structs for the given topic IDs", async () => {
+    // Add topics
+    const topics = [
+      { id: 10, name: "A", fieldNames: ["f1"], fieldTypes: ["string"] },
+      { id: 20, name: "B", fieldNames: ["f2"], fieldTypes: ["uint256"] },
+    ];
+
+    for (const topic of topics) {
+      const encodedFieldNames = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["string[]"],
+        [topic.fieldNames],
+      );
+      const encodedFieldTypes = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["string[]"],
+        [topic.fieldTypes],
+      );
+      await contract
+        .connect(admin)
+        .addTopic(topic.id, topic.name, encodedFieldNames, encodedFieldTypes);
+    }
+
+    // Call getTopics
+    const ids = [10, 20];
+    const result = await contract.getTopics(ids);
+
+    expect(result.length).to.equal(2);
+    expect(result[0].name).to.equal("A");
+    expect(result[1].name).to.equal("B");
+    expect(result[0].encodedFieldNames).to.equal(
+      ethers.AbiCoder.defaultAbiCoder().encode(["string[]"], [["f1"]]),
+    );
+    expect(result[1].encodedFieldTypes).to.equal(
+      ethers.AbiCoder.defaultAbiCoder().encode(["string[]"], [["uint256"]]),
+    );
+  });
 });
