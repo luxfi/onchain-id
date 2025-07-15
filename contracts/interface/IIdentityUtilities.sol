@@ -122,7 +122,7 @@ interface IIdentityUtilities {
      * @param topicIds Array of topic IDs to get TopicInfo structs for
      * @return TopicInfo[] Array of TopicInfo structs corresponding to the input topic IDs
      */
-    function getTopics(
+    function getTopicInfos(
         uint256[] calldata topicIds
     ) external view returns (TopicInfo[] memory);
 }

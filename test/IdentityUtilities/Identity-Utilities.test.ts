@@ -272,9 +272,9 @@ describe("IdentityUtilities adding topics", () => {
         .addTopic(topic.id, topic.name, encodedFieldNames, encodedFieldTypes);
     }
 
-    // Call getTopics
+    // Call getTopicInfos
     const ids = [10, 20];
-    const result = await contract.getTopics(ids);
+    const result = await contract.getTopicInfos(ids);
 
     expect(result.length).to.equal(2);
     expect(result[0].name).to.equal("A");
