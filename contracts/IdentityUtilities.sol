@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
-import {ITopicIdMapping} from "./interface/ITopicIdMapping.sol";
+import {IIdentityUtilities} from "./interface/IIdentityUtilities.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {IIdentity} from "./interface/IIdentity.sol";
 import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
 
 /**
- * @title TopicIdMapping
+ * @title IdentityUtilities
  * @notice Contract for registering and retrieving structured topic schemas using encoded string arrays.
  * @dev Inherits from AccessControl and supports UUPS upgrades. Topics define field names and types using ABI-encoded `string[]` arrays.
  */
-contract TopicIdMapping is
-    ITopicIdMapping,
+contract IdentityUtilities is
+    IIdentityUtilities,
     AccessControlUpgradeable,
     UUPSUpgradeable
 {
@@ -42,7 +42,7 @@ contract TopicIdMapping is
     }
 
     /**
-     * @inheritdoc ITopicIdMapping
+     * @inheritdoc IIdentityUtilities
      */
     function addTopic(
         uint256 topicId,
@@ -67,7 +67,7 @@ contract TopicIdMapping is
     }
 
     /**
-     * @inheritdoc ITopicIdMapping
+     * @inheritdoc IIdentityUtilities
      */
     function updateTopic(
         uint256 topicId,
@@ -92,7 +92,7 @@ contract TopicIdMapping is
     }
 
     /**
-     * @inheritdoc ITopicIdMapping
+     * @inheritdoc IIdentityUtilities
      */
     function removeTopic(
         uint256 topicId
@@ -106,7 +106,7 @@ contract TopicIdMapping is
     }
 
     /**
-     * @inheritdoc ITopicIdMapping
+     * @inheritdoc IIdentityUtilities
      */
     function getTopic(
         uint256 topicId
@@ -115,7 +115,7 @@ contract TopicIdMapping is
     }
 
     /**
-     * @inheritdoc ITopicIdMapping
+     * @inheritdoc IIdentityUtilities
      */
     function getSchema(
         uint256 topicId

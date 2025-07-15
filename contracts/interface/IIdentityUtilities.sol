@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
-/// @title ITopicIdMapping
+/// @title IIdentityUtilities
 /// @notice Interface for a schema registry that maps topic IDs to structured metadata schemas
 /// @dev Each topic is uniquely identified and contains ABI-encoded arrays of field names and types
-interface ITopicIdMapping {
+interface IIdentityUtilities {
     /**
      * @notice Struct that defines a registered topic schema
      * @param name Human-readable name of the topic

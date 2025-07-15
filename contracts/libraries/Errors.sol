@@ -149,7 +149,7 @@ library Errors {
     /// @notice The claim is invalid.
     error InvalidClaim();
 
-    /* ----- TopicIdMapping ----- */
+    /* ----- IdentityUtilities ----- */
 
     /// @notice 0 is not a valid topic.
     error EmptyTopic();

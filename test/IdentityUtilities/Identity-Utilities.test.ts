@@ -3,7 +3,7 @@ import { expect } from "chai";
 
 const abi = ethers.AbiCoder.defaultAbiCoder();
 
-describe("TopicIdMapping", () => {
+describe("IdentityUtilities", () => {
   let contract: any;
   let proxy: any;
   let implementation: any;
@@ -14,12 +14,14 @@ describe("TopicIdMapping", () => {
     admin = deployer;
 
     // Deploy implementation
-    const ImplFactory = await ethers.getContractFactory("TopicIdMapping");
+    const ImplFactory = await ethers.getContractFactory("IdentityUtilities");
     implementation = await ImplFactory.deploy();
     await implementation.waitForDeployment();
 
     // Deploy proxy
-    const ProxyFactory = await ethers.getContractFactory("TopicIdMappingProxy");
+    const ProxyFactory = await ethers.getContractFactory(
+      "IdentityUtilitiesProxy",
+    );
     proxy = await ProxyFactory.deploy(
       await implementation.getAddress(),
       implementation.interface.encodeFunctionData("initialize", [
@@ -111,7 +113,7 @@ describe("TopicIdMapping", () => {
   });
 });
 
-describe("TopicIdMapping adding topics", () => {
+describe("IdentityUtilities adding topics", () => {
   let contract: any;
   let proxy: any;
   let implementation: any;
@@ -121,11 +123,13 @@ describe("TopicIdMapping adding topics", () => {
     const [deployer] = await ethers.getSigners();
     admin = deployer;
 
-    const ImplFactory = await ethers.getContractFactory("TopicIdMapping");
+    const ImplFactory = await ethers.getContractFactory("IdentityUtilities");
     implementation = await ImplFactory.deploy();
     await implementation.waitForDeployment();
 
-    const ProxyFactory = await ethers.getContractFactory("TopicIdMappingProxy");
+    const ProxyFactory = await ethers.getContractFactory(
+      "IdentityUtilitiesProxy",
+    );
     proxy = await ProxyFactory.deploy(
       await implementation.getAddress(),
       implementation.interface.encodeFunctionData("initialize", [
@@ -284,7 +288,7 @@ describe("TopicIdMapping adding topics", () => {
   });
 });
 
-describe("TopicIdMapping getClaimsWithTopicInfo", () => {
+describe("IdentityUtilities getClaimsWithTopicInfo", () => {
   let contract: any;
   let proxy: any;
   let implementation: any;
@@ -297,12 +301,14 @@ describe("TopicIdMapping getClaimsWithTopicInfo", () => {
       await ethers.getSigners();
     admin = deployer;
 
-    // Deploy TopicIdMapping
-    const ImplFactory = await ethers.getContractFactory("TopicIdMapping");
+    // Deploy IdentityUtilities
+    const ImplFactory = await ethers.getContractFactory("IdentityUtilities");
     implementation = await ImplFactory.deploy();
     await implementation.waitForDeployment();
 
-    const ProxyFactory = await ethers.getContractFactory("TopicIdMappingProxy");
+    const ProxyFactory = await ethers.getContractFactory(
+      "IdentityUtilitiesProxy",
+    );
     proxy = await ProxyFactory.deploy(
       await implementation.getAddress(),
       implementation.interface.encodeFunctionData("initialize", [
