@@ -186,27 +186,12 @@ contract Identity is Storage, IIdentity, Version {
     /**
      * @notice Gets the execution data for a specific execution ID
      * @param _executionId The execution ID to get data for
-     * @return to The target address of the execution
-     * @return value The ETH value to transfer with the execution
-     * @return data The payload data of the execution
-     * @return approved The approval status of the execution
-     * @return executed The execution status of the execution
+     * @return execution including (to, value, data, approved, executed)
      */
     function getExecutionData(uint256 _executionId) external view returns (
-        address to,
-        uint256 value,
-        bytes memory data,
-        bool approved,
-        bool executed
+        Execution memory execution
     ) {
-        Execution memory execution = _executions[_executionId];
-        return (
-            execution.to,
-            execution.value,
-            execution.data,
-            execution.approved,
-            execution.executed
-        );
+         return _executions[_executionId];
     }
 
     /**
