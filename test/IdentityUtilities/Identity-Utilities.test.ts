@@ -20,13 +20,11 @@ describe("IdentityUtilities", () => {
 
     // Deploy proxy
     const ProxyFactory = await ethers.getContractFactory(
-      "IdentityUtilitiesProxy",
+      "IdentityUtilitiesProxy"
     );
     proxy = await ProxyFactory.deploy(
       await implementation.getAddress(),
-      implementation.interface.encodeFunctionData("initialize", [
-        admin.address,
-      ]),
+      implementation.interface.encodeFunctionData("initialize", [admin.address])
     );
     await proxy.waitForDeployment();
 
@@ -90,7 +88,7 @@ describe("IdentityUtilities", () => {
       const encodedTypes = abi.encode(["string[]"], [["uint256", "uint8"]]);
 
       await expect(
-        contract.addTopic(topicId, name, encodedNames, encodedTypes),
+        contract.addTopic(topicId, name, encodedNames, encodedTypes)
       ).to.be.revertedWith("Field name/type count mismatch");
     });
 
@@ -105,9 +103,9 @@ describe("IdentityUtilities", () => {
       await expect(
         contract
           .connect(unauthorized)
-          .addTopic(topicId, name, encodedNames, encodedTypes),
+          .addTopic(topicId, name, encodedNames, encodedTypes)
       ).to.be.revertedWith(
-        `AccessControl: account ${unauthorized.address.toLowerCase()} is missing role ${await contract.TOPIC_MANAGER_ROLE()}`,
+        `AccessControl: account ${unauthorized.address.toLowerCase()} is missing role ${await contract.TOPIC_MANAGER_ROLE()}`
       );
     });
   });
@@ -128,13 +126,11 @@ describe("IdentityUtilities adding topics", () => {
     await implementation.waitForDeployment();
 
     const ProxyFactory = await ethers.getContractFactory(
-      "IdentityUtilitiesProxy",
+      "IdentityUtilitiesProxy"
     );
     proxy = await ProxyFactory.deploy(
       await implementation.getAddress(),
-      implementation.interface.encodeFunctionData("initialize", [
-        admin.address,
-      ]),
+      implementation.interface.encodeFunctionData("initialize", [admin.address])
     );
     await proxy.waitForDeployment();
 
@@ -200,7 +196,7 @@ describe("IdentityUtilities adding topics", () => {
         const encodedTypes = abi.encode(["string[]"], [topic.types]);
 
         await expect(
-          contract.addTopic(topic.id, topic.name, encodedNames, encodedTypes),
+          contract.addTopic(topic.id, topic.name, encodedNames, encodedTypes)
         )
           .to.emit(contract, "TopicAdded")
           .withArgs(topic.id, topic.name, encodedNames, encodedTypes);
@@ -227,7 +223,7 @@ describe("IdentityUtilities adding topics", () => {
       const encodedTypes = abi.encode(["string[]"], [["uint256", "uint8"]]);
 
       await expect(
-        contract.addTopic(topicId, name, encodedNames, encodedTypes),
+        contract.addTopic(topicId, name, encodedNames, encodedTypes)
       ).to.be.revertedWith("Field name/type count mismatch");
     });
 
@@ -244,9 +240,9 @@ describe("IdentityUtilities adding topics", () => {
       await expect(
         contract
           .connect(unauthorized)
-          .addTopic(topicId, name, encodedNames, encodedTypes),
+          .addTopic(topicId, name, encodedNames, encodedTypes)
       ).to.be.revertedWith(
-        `AccessControl: account ${unauthorized.address.toLowerCase()} is missing role ${role}`,
+        `AccessControl: account ${unauthorized.address.toLowerCase()} is missing role ${role}`
       );
     });
   });
@@ -261,11 +257,11 @@ describe("IdentityUtilities adding topics", () => {
     for (const topic of topics) {
       const encodedFieldNames = ethers.AbiCoder.defaultAbiCoder().encode(
         ["string[]"],
-        [topic.fieldNames],
+        [topic.fieldNames]
       );
       const encodedFieldTypes = ethers.AbiCoder.defaultAbiCoder().encode(
         ["string[]"],
-        [topic.fieldTypes],
+        [topic.fieldTypes]
       );
       await contract
         .connect(admin)
@@ -280,10 +276,10 @@ describe("IdentityUtilities adding topics", () => {
     expect(result[0].name).to.equal("A");
     expect(result[1].name).to.equal("B");
     expect(result[0].encodedFieldNames).to.equal(
-      ethers.AbiCoder.defaultAbiCoder().encode(["string[]"], [["f1"]]),
+      ethers.AbiCoder.defaultAbiCoder().encode(["string[]"], [["f1"]])
     );
     expect(result[1].encodedFieldTypes).to.equal(
-      ethers.AbiCoder.defaultAbiCoder().encode(["string[]"], [["uint256"]]),
+      ethers.AbiCoder.defaultAbiCoder().encode(["string[]"], [["uint256"]])
     );
   });
 });
@@ -307,13 +303,11 @@ describe("IdentityUtilities getClaimsWithTopicInfo", () => {
     await implementation.waitForDeployment();
 
     const ProxyFactory = await ethers.getContractFactory(
-      "IdentityUtilitiesProxy",
+      "IdentityUtilitiesProxy"
     );
     proxy = await ProxyFactory.deploy(
       await implementation.getAddress(),
-      implementation.interface.encodeFunctionData("initialize", [
-        admin.address,
-      ]),
+      implementation.interface.encodeFunctionData("initialize", [admin.address])
     );
     await proxy.waitForDeployment();
 
@@ -328,24 +322,24 @@ describe("IdentityUtilities getClaimsWithTopicInfo", () => {
     const Identity = await ethers.getContractFactory("Identity");
     const identityImplementation = await Identity.deploy(
       deployer.address,
-      true,
+      true
     );
 
     const ImplementationAuthority = await ethers.getContractFactory(
-      "ImplementationAuthority",
+      "ImplementationAuthority"
     );
     const implementationAuthority = await ImplementationAuthority.deploy(
-      identityImplementation.target,
+      identityImplementation.target
     );
 
     const IdFactory = await ethers.getContractFactory("IdFactory");
     const identityFactory = await IdFactory.deploy(
-      implementationAuthority.target,
+      implementationAuthority.target
     );
 
     await identityFactory.createIdentity(aliceWallet.address, "test");
     const identityAddress = await identityFactory.getIdentity(
-      aliceWallet.address,
+      aliceWallet.address
     );
     identity = await ethers.getContractAt("Identity", identityAddress);
   });
@@ -367,7 +361,7 @@ describe("IdentityUtilities getClaimsWithTopicInfo", () => {
         topic.id,
         topic.name,
         encodedFieldNames,
-        encodedFieldTypes,
+        encodedFieldTypes
       );
     }
 
@@ -375,14 +369,14 @@ describe("IdentityUtilities getClaimsWithTopicInfo", () => {
     await claimIssuer.connect(claimIssuerWallet).addKey(
       ethers.keccak256(abi.encode(["address"], [claimIssuerWallet.address])),
       3, // CLAIM_SIGNER
-      1, // ECDSA
+      1 // ECDSA
     );
 
     // Add claim signer key to the identity
     await identity.connect(aliceWallet).addKey(
       ethers.keccak256(abi.encode(["address"], [aliceWallet.address])),
       3, // CLAIM_SIGNER
-      1, // ECDSA
+      1 // ECDSA
     );
 
     // Create and add claims to the identity
@@ -409,21 +403,21 @@ describe("IdentityUtilities getClaimsWithTopicInfo", () => {
     const hash1 = ethers.keccak256(
       abi.encode(
         ["address", "uint256", "bytes"],
-        [identity.target, claim1.topic, claim1.data],
-      ),
+        [identity.target, claim1.topic, claim1.data]
+      )
     );
     const hash2 = ethers.keccak256(
       abi.encode(
         ["address", "uint256", "bytes"],
-        [identity.target, claim2.topic, claim2.data],
-      ),
+        [identity.target, claim2.topic, claim2.data]
+      )
     );
 
     claim1.signature = await claimIssuerWallet.signMessage(
-      ethers.getBytes(hash1),
+      ethers.getBytes(hash1)
     );
     claim2.signature = await claimIssuerWallet.signMessage(
-      ethers.getBytes(hash2),
+      ethers.getBytes(hash2)
     );
 
     // Add claims to identity
@@ -435,7 +429,7 @@ describe("IdentityUtilities getClaimsWithTopicInfo", () => {
         claim1.issuer,
         claim1.signature,
         claim1.data,
-        claim1.uri,
+        claim1.uri
       );
 
     await identity
@@ -446,14 +440,14 @@ describe("IdentityUtilities getClaimsWithTopicInfo", () => {
         claim2.issuer,
         claim2.signature,
         claim2.data,
-        claim2.uri,
+        claim2.uri
       );
 
     // Call getClaimsWithTopicInfo
     const topicIds = [1001, 1002];
     const result = await contract.getClaimsWithTopicInfo(
       identity.target,
-      topicIds,
+      topicIds
     );
 
     // Verify the structure and values of the result
@@ -471,10 +465,10 @@ describe("IdentityUtilities getClaimsWithTopicInfo", () => {
     expect(kycClaim.uri).to.equal("https://example.com/kyc");
     expect(kycClaim.topic.name).to.equal("KYC");
     expect(kycClaim.topic.encodedFieldNames).to.equal(
-      abi.encode(["string[]"], [["status"]]),
+      abi.encode(["string[]"], [["status"]])
     );
     expect(kycClaim.topic.encodedFieldTypes).to.equal(
-      abi.encode(["string[]"], [["string"]]),
+      abi.encode(["string[]"], [["string"]])
     );
     // Decode and verify KYC claim data
     const decodedKycData = abi.decode(["string"], kycClaim.data);
@@ -491,10 +485,10 @@ describe("IdentityUtilities getClaimsWithTopicInfo", () => {
     expect(amlClaim.uri).to.equal("https://example.com/aml");
     expect(amlClaim.topic.name).to.equal("AML");
     expect(amlClaim.topic.encodedFieldNames).to.equal(
-      abi.encode(["string[]"], [["level"]]),
+      abi.encode(["string[]"], [["level"]])
     );
     expect(amlClaim.topic.encodedFieldTypes).to.equal(
-      abi.encode(["string[]"], [["uint8"]]),
+      abi.encode(["string[]"], [["uint8"]])
     );
     // Decode and verify AML claim data
     const decodedAmlData = abi.decode(["uint8"], amlClaim.data);
