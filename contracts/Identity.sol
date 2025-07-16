@@ -176,6 +176,25 @@ contract Identity is Storage, IIdentity, Version {
     }
 
     /**
+     * @notice Gets the current execution nonce
+     * @return The current execution nonce
+     */
+    function getCurrentNonce() external view returns (uint256) {
+        return _executionNonce;
+    }
+
+    /**
+     * @notice Gets the execution data for a specific execution ID
+     * @param _executionId The execution ID to get data for
+     * @return execution including (to, value, data, approved, executed)
+     */
+    function getExecutionData(uint256 _executionId) external view returns (
+        Execution memory execution
+    ) {
+         return _executions[_executionId];
+    }
+
+    /**
      * @notice implementation of the addKey function of the ERC-734 standard
      * Adds a _key to the identity. The _purpose specifies the purpose of key. Initially we propose four purposes:
      * 1: MANAGEMENT keys, which can manage the identity
