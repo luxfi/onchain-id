@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
-import { IIdentity } from "./interface/IIdentity.sol";
-import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
-import { Version } from "./version/Version.sol";
-import { Storage } from "./storage/Storage.sol";
-import { Errors } from "./libraries/Errors.sol";
-import { KeyPurposes } from "./libraries/KeyPurposes.sol";
-import { KeyTypes } from "./libraries/KeyTypes.sol";
-
+import {IIdentity} from "./interface/IIdentity.sol";
+import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
+import {Version} from "./version/Version.sol";
+import {Storage} from "./storage/Storage.sol";
+import {Errors} from "./libraries/Errors.sol";
+import {KeyPurposes} from "./libraries/KeyPurposes.sol";
+import {KeyTypes} from "./libraries/KeyTypes.sol";
 
 /**
  * @dev Implementation of the `IERC734` "KeyHolder" and the `IERC735` "ClaimHolder" interfaces
@@ -29,8 +28,14 @@ contract Identity is Storage, IIdentity, Version {
      * @notice requires management key to call this function, or internal call
      */
     modifier onlyManager() {
-        require(msg.sender == address(this) || keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.MANAGEMENT)
-        , Errors.SenderDoesNotHaveManagementKey());
+        require(
+            msg.sender == address(this) ||
+                keyHasPurpose(
+                    keccak256(abi.encode(msg.sender)),
+                    KeyPurposes.MANAGEMENT
+                ),
+            Errors.SenderDoesNotHaveManagementKey()
+        );
         _;
     }
 
@@ -38,8 +43,14 @@ contract Identity is Storage, IIdentity, Version {
      * @notice requires claim key to call this function, or internal call
      */
     modifier onlyClaimKey() {
-        require(msg.sender == address(this) || keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.CLAIM_SIGNER)
-        , Errors.SenderDoesNotHaveClaimSignerKey());
+        require(
+            msg.sender == address(this) ||
+                keyHasPurpose(
+                    keccak256(abi.encode(msg.sender)),
+                    KeyPurposes.CLAIM_SIGNER
+                ),
+            Errors.SenderDoesNotHaveClaimSignerKey()
+        );
         _;
     }
 
@@ -92,28 +103,9 @@ contract Identity is Storage, IIdentity, Version {
 
         emit ExecutionRequested(_executionId, _to, _value, _data);
 
-        if (keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.MANAGEMENT)) {
-            approve(_executionId, true);
-            return _executionId;
-        }
-
-        if (_to == address(this) && _data.length >= 4) {
-            bytes4 selector;
-            assembly {
-                selector := mload(add(_data, 32))
-            }
-            if (
-                selector == this.addClaim.selector &&
-                keyHasPurpose(keccak256(abi.encode(msg.sender)), 3)
-            ) {
-                approve(_executionId, true);
-                return _executionId;
-            }
-        }
-
-        else if (_to != address(this) && keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)){
-            approve(_executionId, true);
-            return _executionId;
+        // Check if execution can be auto-approved
+        if (_canAutoApproveExecution(_to, _data)) {
+            _approve(_executionId, true);
         }
 
         return _executionId;
@@ -188,10 +180,10 @@ contract Identity is Storage, IIdentity, Version {
      * @param _executionId The execution ID to get data for
      * @return execution including (to, value, data, approved, executed)
      */
-    function getExecutionData(uint256 _executionId) external view returns (
-        Execution memory execution
-    ) {
-         return _executions[_executionId];
+    function getExecutionData(
+        uint256 _executionId
+    ) external view returns (Execution memory execution) {
+        return _executions[_executionId];
     }
 
     /**
@@ -215,7 +207,11 @@ contract Identity is Storage, IIdentity, Version {
     ) public override delegatedOnly onlyManager returns (bool success) {
         if (_keys[_key].key == _key) {
             uint256[] memory _purposes = _keys[_key].purposes;
-            for (uint256 keyPurposeIndex = 0; keyPurposeIndex < _purposes.length; keyPurposeIndex++) {
+            for (
+                uint256 keyPurposeIndex = 0;
+                keyPurposeIndex < _purposes.length;
+                keyPurposeIndex++
+            ) {
                 uint256 purpose = _purposes[keyPurposeIndex];
 
                 if (purpose == _purpose) {
@@ -247,21 +243,46 @@ contract Identity is Storage, IIdentity, Version {
      */
     function approve(
         uint256 _id,
-        bool _approve
+        bool _shouldApprove
     ) public override delegatedOnly returns (bool success) {
         require(_id < _executionNonce, Errors.InvalidRequestId());
         require(!_executions[_id].executed, Errors.RequestAlreadyExecuted());
 
-        if(_executions[_id].to == address(this)) {
-            require(keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.MANAGEMENT), Errors.SenderDoesNotHaveManagementKey());
-        }
-        else {
-            require(keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION), Errors.SenderDoesNotHaveActionKey());
+        // Validate that the sender has the appropriate key purpose
+        if (_executions[_id].to == address(this)) {
+            require(
+                keyHasPurpose(
+                    keccak256(abi.encode(msg.sender)),
+                    KeyPurposes.MANAGEMENT
+                ),
+                Errors.SenderDoesNotHaveManagementKey()
+            );
+        } else {
+            require(
+                keyHasPurpose(
+                    keccak256(abi.encode(msg.sender)),
+                    KeyPurposes.ACTION
+                ),
+                Errors.SenderDoesNotHaveActionKey()
+            );
         }
 
-        emit Approved(_id, _approve);
+        return _approve(_id, _shouldApprove);
+    }
 
-        if (_approve) {
+    /**
+     * @dev Internal method to handle the actual approval logic
+     * @param _id The execution ID to approve
+     * @param _shouldApprove Whether to approve or reject the execution
+     * @return success Whether the execution was successful
+     */
+    function _approve(
+        uint256 _id,
+        bool _shouldApprove
+    ) internal returns (bool success) {
+        emit Approved(_id, _shouldApprove);
+
+        if (_shouldApprove) {
             _executions[_id].approved = true;
 
             // solhint-disable-next-line avoid-low-level-calls
@@ -293,6 +314,54 @@ contract Identity is Storage, IIdentity, Version {
         } else {
             _executions[_id].approved = false;
         }
+        return false;
+    }
+
+    /**
+     * @dev Internal method to check if an execution can be auto-approved based on key purposes
+     * @param _to The target address of the execution
+     * @param _data The execution data
+     * @return canAutoApprove Whether the execution can be auto-approved
+     */
+    function _canAutoApproveExecution(
+        address _to,
+        bytes memory _data
+    ) internal view returns (bool canAutoApprove) {
+        // MANAGEMENT keys can auto-approve any execution
+        if (
+            keyHasPurpose(
+                keccak256(abi.encode(msg.sender)),
+                KeyPurposes.MANAGEMENT
+            )
+        ) {
+            return true;
+        }
+
+        // For identity contract calls, check if it's an addClaim call with CLAIM_SIGNER key
+        if (_to == address(this) && _data.length >= 4) {
+            bytes4 selector;
+            assembly {
+                selector := mload(add(_data, 32))
+            }
+            if (
+                selector == this.addClaim.selector &&
+                keyHasPurpose(
+                    keccak256(abi.encode(msg.sender)),
+                    KeyPurposes.CLAIM_SIGNER
+                )
+            ) {
+                return true;
+            }
+        }
+
+        // ACTION keys can auto-approve external calls
+        if (
+            _to != address(this) &&
+            keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)
+        ) {
+            return true;
+        }
+
         return false;
     }
 
@@ -528,10 +597,15 @@ contract Identity is Storage, IIdentity, Version {
         Key memory key = _keys[_key];
         if (key.key == 0) return false;
 
-        for (uint256 keyPurposeIndex = 0; keyPurposeIndex < key.purposes.length; keyPurposeIndex++) {
+        for (
+            uint256 keyPurposeIndex = 0;
+            keyPurposeIndex < key.purposes.length;
+            keyPurposeIndex++
+        ) {
             uint256 purpose = key.purposes[keyPurposeIndex];
 
-            if (purpose == KeyPurposes.MANAGEMENT || purpose == _purpose) return true;
+            if (purpose == KeyPurposes.MANAGEMENT || purpose == _purpose)
+                return true;
         }
 
         return false;
@@ -566,7 +640,7 @@ contract Identity is Storage, IIdentity, Version {
         bytes32 hashedAddr = keccak256(abi.encode(recovered));
 
         // Does the trusted identifier have they key which signed the user's claim?
-        //  && (isClaimRevoked(_claimId) == false) 
+        //  && (isClaimRevoked(_claimId) == false)
         return keyHasPurpose(hashedAddr, KeyPurposes.CLAIM_SIGNER);
     }
 
