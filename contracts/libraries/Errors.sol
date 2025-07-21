@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.27;
+pragma solidity ^0.8.27;
 
 /// @title Errors
 /// @notice Library containing all custom errors the protocol may revert with
@@ -173,7 +173,7 @@ library Errors {
 
     /// @notice The address is blacklisted.
     error Blacklisted(address addr);
-    
+
     /// @notice The call failed.
     error CallFailed();
 

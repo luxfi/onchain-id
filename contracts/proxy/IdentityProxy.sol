@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-pragma solidity 0.8.27;
+pragma solidity ^0.8.27;
 
 import { IImplementationAuthority } from "../interface/IImplementationAuthority.sol";
 import { Errors } from "../libraries/Errors.sol";
