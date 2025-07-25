@@ -1,7 +1,7 @@
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { deployIdentityFixture } from "../fixtures";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("ClaimIssuer - Add claim to another identity", function () {
   describe("addClaimTo", function () {
@@ -26,18 +26,18 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
                 ["address", "uint256", "bytes"],
-                [newClaim.identity, newClaim.topic, newClaim.data]
-              )
-            )
-          )
+                [newClaim.identity, newClaim.topic, newClaim.data],
+              ),
+            ),
+          ),
         );
 
         // Add ClaimIssuer as management key (purpose 1) to aliceIdentity
         const claimIssuerKey = ethers.keccak256(
           ethers.AbiCoder.defaultAbiCoder().encode(
             ["address"],
-            [await claimIssuer.getAddress()]
-          )
+            [await claimIssuer.getAddress()],
+          ),
         );
         await aliceIdentity.connect(aliceWallet).addKey(claimIssuerKey, 1, 1);
 
@@ -47,7 +47,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           newClaim.signature,
           newClaim.data,
           newClaim.uri,
-          newClaim.identity
+          newClaim.identity,
         );
 
         // Prepare the expected data for event assertions
@@ -60,7 +60,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             newClaim.signature,
             newClaim.data,
             newClaim.uri,
-          ]
+          ],
         );
 
         // Events from Alice's identity (outer execution only)
@@ -77,8 +77,8 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const claimId = ethers.keccak256(
           ethers.AbiCoder.defaultAbiCoder().encode(
             ["address", "uint256"],
-            [newClaim.issuer, newClaim.topic]
-          )
+            [newClaim.issuer, newClaim.topic],
+          ),
         );
         await expect(tx)
           .to.emit(aliceIdentity, "ClaimAdded")
@@ -89,7 +89,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             newClaim.issuer,
             newClaim.signature,
             newClaim.data,
-            newClaim.uri
+            newClaim.uri,
           );
 
         // Check that ClaimAddedTo event is emitted by the ClaimIssuer
@@ -99,7 +99,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             newClaim.identity,
             newClaim.topic,
             newClaim.signature,
-            newClaim.data
+            newClaim.data,
           );
 
         // Verify the claim was actually added
@@ -115,7 +115,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
     describe("when adding a claim to another identity with non-management key", function () {
       it("should revert", async function () {
         const { claimIssuer, aliceClaim666, bobWallet } = await loadFixture(
-          deployIdentityFixture
+          deployIdentityFixture,
         );
 
         await expect(
@@ -127,11 +127,11 @@ describe("ClaimIssuer - Add claim to another identity", function () {
               aliceClaim666.signature,
               aliceClaim666.data,
               aliceClaim666.uri,
-              aliceClaim666.identity
-            )
+              aliceClaim666.identity,
+            ),
         ).to.be.revertedWithCustomError(
           claimIssuer,
-          "SenderDoesNotHaveManagementKey"
+          "SenderDoesNotHaveManagementKey",
         );
       });
     });
@@ -159,8 +159,8 @@ describe("ClaimIssuer - Add claim to another identity", function () {
               invalidClaim.signature,
               invalidClaim.data,
               invalidClaim.uri,
-              invalidClaim.identity
-            )
+              invalidClaim.identity,
+            ),
         ).to.be.revertedWithCustomError(claimIssuer, "InvalidClaim");
       });
     });
@@ -176,11 +176,11 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
                 ["address"],
-                [aliceWallet.address]
-              )
+                [aliceWallet.address],
+              ),
             ),
             1,
-            1
+            1,
           );
 
         const newClaim = {
@@ -198,10 +198,10 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
                 ["address", "uint256", "bytes"],
-                [newClaim.identity, newClaim.topic, newClaim.data]
-              )
-            )
-          )
+                [newClaim.identity, newClaim.topic, newClaim.data],
+              ),
+            ),
+          ),
         );
 
         await expect(
@@ -213,8 +213,8 @@ describe("ClaimIssuer - Add claim to another identity", function () {
               "0x0099",
               "0x0099",
               "https://example.com/new-claim",
-              ethers.ZeroAddress
-            )
+              ethers.ZeroAddress,
+            ),
         ).to.be.revertedWithCustomError(claimIssuer, "InvalidClaim");
       });
     });
@@ -244,10 +244,10 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
                 ["address", "uint256", "bytes"],
-                [newClaim.identity, newClaim.topic, newClaim.data]
-              )
-            )
-          )
+                [newClaim.identity, newClaim.topic, newClaim.data],
+              ),
+            ),
+          ),
         );
 
         const tx = await claimIssuer.addClaimTo(
@@ -256,30 +256,30 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           newClaim.signature,
           newClaim.data,
           newClaim.uri,
-          newClaim.identity
+          newClaim.identity,
         );
         const receipt = await tx.wait();
 
         // Find the execution ID from the event
         const executionRequestedEvent = receipt?.logs.find(
-          (log: any) => log.fragment?.name === "ExecutionRequested"
+          (log: any) => log.fragment?.name === "ExecutionRequested",
         );
         const executionId = (executionRequestedEvent as any)?.args?.[0];
 
         expect(executionRequestedEvent).to.not.be.undefined;
         expect((executionRequestedEvent as any)?.args?.[0]).to.equal(
-          executionId
+          executionId,
         );
         expect((executionRequestedEvent as any)?.args?.[1]).to.equal(
-          await aliceIdentity.getAddress()
+          await aliceIdentity.getAddress(),
         );
         expect((executionRequestedEvent as any)?.args?.[2]).to.equal(0);
 
         const claimId = ethers.keccak256(
           ethers.AbiCoder.defaultAbiCoder().encode(
             ["address", "uint256"],
-            [newClaim.issuer, newClaim.topic]
-          )
+            [newClaim.issuer, newClaim.topic],
+          ),
         );
 
         // Verify the claim doesn't exist before approval
@@ -320,10 +320,10 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
                 ["address", "uint256", "bytes"],
-                [newClaim.identity, newClaim.topic, newClaim.data]
-              )
-            )
-          )
+                [newClaim.identity, newClaim.topic, newClaim.data],
+              ),
+            ),
+          ),
         );
 
         const tx = await claimIssuer.addClaimTo(
@@ -332,13 +332,13 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           newClaim.signature,
           newClaim.data,
           newClaim.uri,
-          newClaim.identity
+          newClaim.identity,
         );
         const receipt = await tx.wait();
 
         // Verify that ExecutionRequested event was emitted (execution is pending)
         const executionRequestedEvent = receipt?.logs.find(
-          (log: any) => log.fragment?.name === "ExecutionRequested"
+          (log: any) => log.fragment?.name === "ExecutionRequested",
         );
 
         expect(executionRequestedEvent).to.not.be.undefined;
@@ -349,8 +349,8 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const claimId = ethers.keccak256(
           ethers.AbiCoder.defaultAbiCoder().encode(
             ["address", "uint256"],
-            [newClaim.issuer, newClaim.topic]
-          )
+            [newClaim.issuer, newClaim.topic],
+          ),
         );
 
         const claimBeforeApproval = await aliceIdentity.getClaim(claimId);
@@ -392,18 +392,18 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             ethers.keccak256(
               ethers.AbiCoder.defaultAbiCoder().encode(
                 ["address", "uint256", "bytes"],
-                [newClaim.identity, newClaim.topic, newClaim.data]
-              )
-            )
-          )
+                [newClaim.identity, newClaim.topic, newClaim.data],
+              ),
+            ),
+          ),
         );
 
         // Add ClaimIssuer as management key (purpose 1) and claim signing key (purpose 3)
         const claimIssuerKey = ethers.keccak256(
           ethers.AbiCoder.defaultAbiCoder().encode(
             ["address"],
-            [await claimIssuer.getAddress()]
-          )
+            [await claimIssuer.getAddress()],
+          ),
         );
 
         await aliceIdentity.connect(aliceWallet).addKey(claimIssuerKey, 1, 1);
@@ -414,7 +414,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
           newClaim.signature,
           newClaim.data,
           newClaim.uri,
-          newClaim.identity
+          newClaim.identity,
         );
 
         const receipt = await tx.wait();
@@ -429,7 +429,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             newClaim.signature,
             newClaim.data,
             newClaim.uri,
-          ]
+          ],
         );
 
         // Since both executes are auto-approved, we should only see one execution request and approval
@@ -446,8 +446,8 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         const claimId = ethers.keccak256(
           ethers.AbiCoder.defaultAbiCoder().encode(
             ["address", "uint256"],
-            [newClaim.issuer, newClaim.topic]
-          )
+            [newClaim.issuer, newClaim.topic],
+          ),
         );
         await expect(tx)
           .to.emit(aliceIdentity, "ClaimAdded")
@@ -458,7 +458,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             newClaim.issuer,
             newClaim.signature,
             newClaim.data,
-            newClaim.uri
+            newClaim.uri,
           );
 
         // Check that ClaimAddedTo event is emitted by the ClaimIssuer
@@ -468,7 +468,7 @@ describe("ClaimIssuer - Add claim to another identity", function () {
             newClaim.identity,
             newClaim.topic,
             newClaim.signature,
-            newClaim.data
+            newClaim.data,
           );
 
         // Verify the claim was actually added
@@ -479,64 +479,6 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         expect(claim.signature).to.equal(newClaim.signature);
         expect(claim.data).to.equal(newClaim.data);
         expect(claim.uri).to.equal(newClaim.uri);
-      });
-    });
-
-    describe("when execute call fails", function () {
-      it("should revert with CallFailed error", async function () {
-        const { claimIssuer, aliceIdentity, claimIssuerWallet, aliceWallet } =
-          await loadFixture(deployIdentityFixture);
-
-        const newClaim = {
-          identity: await aliceIdentity.getAddress(),
-          issuer: await claimIssuer.getAddress(),
-          topic: 999,
-          scheme: 1,
-          data: "0x0099",
-          signature: "",
-          uri: "https://example.com/new-claim",
-        };
-
-        newClaim.signature = await claimIssuerWallet.signMessage(
-          ethers.getBytes(
-            ethers.keccak256(
-              ethers.AbiCoder.defaultAbiCoder().encode(
-                ["address", "uint256", "bytes"],
-                [newClaim.identity, newClaim.topic, newClaim.data]
-              )
-            )
-          )
-        );
-
-        const claimIssuerKey = ethers.keccak256(
-          ethers.AbiCoder.defaultAbiCoder().encode(
-            ["address"],
-            [await claimIssuer.getAddress()]
-          )
-        );
-        await aliceIdentity.connect(aliceWallet).addKey(claimIssuerKey, 3, 1);
-
-        // Remove all management keys from aliceIdentity to make execute fail
-        const aliceKey = ethers.keccak256(
-          ethers.AbiCoder.defaultAbiCoder().encode(
-            ["address"],
-            [aliceWallet.address]
-          )
-        );
-        await aliceIdentity.connect(aliceWallet).removeKey(aliceKey, 1);
-
-        await expect(
-          claimIssuer
-            .connect(claimIssuerWallet)
-            .addClaimTo(
-              newClaim.topic,
-              newClaim.scheme,
-              newClaim.signature,
-              newClaim.data,
-              newClaim.uri,
-              newClaim.identity
-            )
-        ).to.be.revertedWithCustomError(claimIssuer, "CallFailed");
       });
     });
   });

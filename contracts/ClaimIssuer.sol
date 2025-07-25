@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.27;
 
-import { UUPSUpgradeable } from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
-import { Identity, IIdentity } from "./Identity.sol";
-import { Errors } from "./libraries/Errors.sol";
-import { KeyPurposes } from "./libraries/KeyPurposes.sol";
+import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
+import {Identity, IIdentity} from "./Identity.sol";
+import {Errors} from "./libraries/Errors.sol";
+import {KeyPurposes} from "./libraries/KeyPurposes.sol";
 
 contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
-    mapping (bytes => bool) public revokedClaims;
+    mapping(bytes => bool) public revokedClaims;
 
     // solhint-disable-next-line no-empty-blocks
     constructor(
         address initialManagementKey
     ) Identity(initialManagementKey, false) {}
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyManager {}
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyManager {}
 
     /**
      *  @dev See {IClaimIssuer-revokeClaimBySignature}.
@@ -69,7 +71,8 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
             isClaimValid(_identity, _topic, _signature, _data),
             Errors.InvalidClaim()
         );
-    bytes memory addClaimData = abi.encodeWithSelector(
+
+        bytes memory addClaimData = abi.encodeWithSelector(
             _identity.addClaim.selector,
             _topic,
             _scheme,
@@ -79,15 +82,8 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
             _uri
         );
 
-        (bool success, ) = address(_identity).call(
-            abi.encodeWithSelector(
-                _identity.execute.selector,
-                address(_identity),
-                0,
-                addClaimData
-            )
-        );
-        require(success, Errors.CallFailed());
+        _identity.execute(address(_identity), 0, addClaimData);
+
         emit ClaimAddedTo(address(_identity), _topic, _signature, _data);
     }
 
@@ -114,14 +110,17 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
 
         // Does the trusted identifier have they key which signed the user's claim?
         //  && (isClaimRevoked(_claimId) == false)
-        return keyHasPurpose(hashedAddr, KeyPurposes.CLAIM_SIGNER) && !isClaimRevoked(sig);
+        return
+            keyHasPurpose(hashedAddr, KeyPurposes.CLAIM_SIGNER) &&
+            !isClaimRevoked(sig);
     }
 
     /**
      *  @dev See {IClaimIssuer-isClaimRevoked}.
      */
-    function isClaimRevoked(bytes memory _sig) public override view returns (bool) {
+    function isClaimRevoked(
+        bytes memory _sig
+    ) public view override returns (bool) {
         return revokedClaims[_sig];
     }
-
 }
