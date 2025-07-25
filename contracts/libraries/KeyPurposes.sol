@@ -1,10 +1,10 @@
  // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.27;
+pragma solidity ^0.8.27;
 
 /// @title KeyPurposes
 /// @notice Constants for Key Purposes
 library KeyPurposes {
-    
+
     /// @dev 1: MANAGEMENT keys, which can manage the identity
     uint256 constant MANAGEMENT = 1;
 

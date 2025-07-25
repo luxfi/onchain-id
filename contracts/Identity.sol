@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.27;
+pragma solidity ^0.8.27;
 
 import { IIdentity } from "./interface/IIdentity.sol";
 import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
@@ -566,7 +566,7 @@ contract Identity is Storage, IIdentity, Version {
         bytes32 hashedAddr = keccak256(abi.encode(recovered));
 
         // Does the trusted identifier have they key which signed the user's claim?
-        //  && (isClaimRevoked(_claimId) == false) 
+        //  && (isClaimRevoked(_claimId) == false)
         return keyHasPurpose(hashedAddr, KeyPurposes.CLAIM_SIGNER);
     }
 
