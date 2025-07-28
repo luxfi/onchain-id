@@ -82,7 +82,9 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
             _uri
         );
 
-        _identity.execute(address(_identity), 0, addClaimData);
+        try _identity.execute(address(_identity), 0, addClaimData) {} catch {
+            revert Errors.CallFailed();
+        }
 
         emit ClaimAddedTo(address(_identity), _topic, _signature, _data);
     }
