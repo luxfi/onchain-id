@@ -760,5 +760,97 @@ describe("Identity", () => {
         expect(newBalance).to.equal(previousBalance);
       });
     });
+
+    describe("auto-approval for addClaim with CLAIM_SIGNER key", () => {
+      it("should auto-approve addClaim execution when caller has CLAIM_SIGNER key", async () => {
+        const {
+          aliceIdentity,
+          aliceWallet,
+          bobWallet,
+          claimIssuer,
+          claimIssuerWallet,
+        } = await loadFixture(deployIdentityFixture);
+
+        // Add bobWallet as CLAIM_SIGNER key (purpose 3) only
+        const bobKeyHash = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address"],
+            [bobWallet.address],
+          ),
+        );
+        await aliceIdentity.connect(aliceWallet).addKey(bobKeyHash, 3, 1); // CLAIM_SIGNER only
+
+        // Create a claim
+        const claim = {
+          identity: await aliceIdentity.getAddress(),
+          issuer: await claimIssuer.getAddress(),
+          topic: 42,
+          scheme: 1,
+          data: "0x0042",
+          signature: "",
+          uri: "https://example.com",
+        };
+        const claimId = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address", "uint256"],
+            [claim.issuer, claim.topic],
+          ),
+        );
+        claim.signature = await claimIssuerWallet.signMessage(
+          ethers.getBytes(
+            ethers.keccak256(
+              ethers.AbiCoder.defaultAbiCoder().encode(
+                ["address", "uint256", "bytes"],
+                [claim.identity, claim.topic, claim.data],
+              ),
+            ),
+          ),
+        );
+
+        // Encode the addClaim function call
+        const addClaimData = aliceIdentity.interface.encodeFunctionData(
+          "addClaim",
+          [
+            claim.topic,
+            claim.scheme,
+            claim.issuer,
+            claim.signature,
+            claim.data,
+            claim.uri,
+          ],
+        );
+
+        // Execute addClaim through the identity contract itself
+        // This should trigger the auto-approval condition for CLAIM_SIGNER keys
+        const tx = await aliceIdentity
+          .connect(bobWallet)
+          .execute(await aliceIdentity.getAddress(), 0, addClaimData);
+
+        // Verify that the execution was auto-approved and executed
+        await expect(tx)
+          .to.emit(aliceIdentity, "ExecutionRequested")
+          .withArgs(0, await aliceIdentity.getAddress(), 0, addClaimData);
+        await expect(tx).to.emit(aliceIdentity, "Approved").withArgs(0, true);
+        await expect(tx)
+          .to.emit(aliceIdentity, "Executed")
+          .withArgs(0, await aliceIdentity.getAddress(), 0, addClaimData);
+        await expect(tx)
+          .to.emit(aliceIdentity, "ClaimAdded")
+          .withArgs(
+            claimId,
+            claim.topic,
+            claim.scheme,
+            claim.issuer,
+            claim.signature,
+            claim.data,
+            claim.uri,
+          );
+
+        // Verify the claim was actually added
+        const retrievedClaim = await aliceIdentity.getClaim(claimId);
+        expect(retrievedClaim.topic).to.equal(claim.topic);
+        expect(retrievedClaim.issuer).to.equal(claim.issuer);
+      });
+    });
   });
 });
