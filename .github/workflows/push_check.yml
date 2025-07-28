@@ -42,4 +42,4 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN_FOR_GPR}}
       - name: Run tests
-        run: npm run test:coverage
+        run: npm run coverage
