@@ -3,6 +3,8 @@ pragma solidity ^0.8.27;
 
 import {IIdentity} from "./interface/IIdentity.sol";
 import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
+import {IERC734} from "./interface/IERC734.sol";
+import {IERC735} from "./interface/IERC735.sol";
 import {Version} from "./version/Version.sol";
 import {Storage} from "./storage/Storage.sol";
 import {Errors} from "./libraries/Errors.sol";
@@ -10,6 +12,7 @@ import {KeyPurposes} from "./libraries/KeyPurposes.sol";
 import {KeyTypes} from "./libraries/KeyTypes.sol";
 
 import {MulticallUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @dev Implementation of the `IERC734` "KeyHolder" and the `IERC735` "ClaimHolder" interfaces
@@ -80,6 +83,21 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     function initialize(address initialManagementKey) external {
         require(initialManagementKey != address(0), Errors.ZeroAddress());
         __Identity_init(initialManagementKey);
+    }
+
+    /**
+     * @dev See {IERC165-supportsInterface}.
+     * @notice Returns true if this contract implements the interface defined by interfaceId
+     * @param interfaceId The interface identifier, as specified in ERC-165
+     * @return true if the interface is supported, false otherwise
+     */
+    function supportsInterface(
+        bytes4 interfaceId
+    ) external pure returns (bool) {
+        return (interfaceId == type(IERC165).interfaceId ||
+            interfaceId == type(IERC734).interfaceId ||
+            interfaceId == type(IERC735).interfaceId ||
+            interfaceId == type(IIdentity).interfaceId);
     }
 
     /**
