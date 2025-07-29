@@ -9,13 +9,15 @@ import {Errors} from "./libraries/Errors.sol";
 import {KeyPurposes} from "./libraries/KeyPurposes.sol";
 import {KeyTypes} from "./libraries/KeyTypes.sol";
 
+import {MulticallUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
+
 /**
  * @dev Implementation of the `IERC734` "KeyHolder" and the `IERC735` "ClaimHolder" interfaces
  * into a common Identity Contract.
  * This implementation has a separate contract were it declares all storage,
  * allowing for it to be used as an upgradable logic contract.
  */
-contract Identity is Storage, IIdentity, Version {
+contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     /**
      * @notice Prevent any direct calls to the implementation contract (marked by _canInteract = false).
      */
