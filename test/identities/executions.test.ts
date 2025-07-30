@@ -854,3 +854,141 @@ describe("Identity", () => {
     });
   });
 });
+
+describe("Identity Multicall", () => {
+  describe("multicall with execute and approve", () => {
+    it("should handle mixed approve/reject operations via multicall", async () => {
+      const {
+        aliceIdentity,
+        aliceWallet,
+        bobWallet,
+        carolWallet,
+        davidWallet,
+      } = await loadFixture(deployIdentityFixture);
+
+      // Add ACTION key for bobWallet
+      await aliceIdentity
+        .connect(aliceWallet)
+        .addKey(
+          ethers.keccak256(
+            ethers.AbiCoder.defaultAbiCoder().encode(
+              ["address"],
+              [bobWallet.address],
+            ),
+          ),
+          KeyPurposes.ACTION,
+          KeyTypes.ECDSA,
+        );
+
+      // Execute 3 operations
+      const executeData1 = aliceIdentity.interface.encodeFunctionData(
+        "execute",
+        [
+          aliceIdentity.target,
+          0n,
+          aliceIdentity.interface.encodeFunctionData("addKey", [
+            ethers.keccak256(
+              ethers.AbiCoder.defaultAbiCoder().encode(
+                ["address"],
+                [carolWallet.address],
+              ),
+            ),
+            KeyPurposes.ACTION,
+            KeyTypes.ECDSA,
+          ]),
+        ],
+      );
+
+      const executeData2 = aliceIdentity.interface.encodeFunctionData(
+        "execute",
+        [
+          aliceIdentity.target,
+          0n,
+          aliceIdentity.interface.encodeFunctionData("addKey", [
+            ethers.keccak256(
+              ethers.AbiCoder.defaultAbiCoder().encode(
+                ["address"],
+                [davidWallet.address],
+              ),
+            ),
+            KeyPurposes.ACTION,
+            KeyTypes.ECDSA,
+          ]),
+        ],
+      );
+
+      const executeData3 = aliceIdentity.interface.encodeFunctionData(
+        "execute",
+        [
+          aliceIdentity.target,
+          0n,
+          aliceIdentity.interface.encodeFunctionData("addKey", [
+            ethers.keccak256(
+              ethers.AbiCoder.defaultAbiCoder().encode(
+                ["address"],
+                [ethers.Wallet.createRandom().address],
+              ),
+            ),
+            KeyPurposes.ACTION,
+            KeyTypes.ECDSA,
+          ]),
+        ],
+      );
+
+      await aliceIdentity
+        .connect(bobWallet)
+        .multicall([executeData1, executeData2, executeData3]);
+
+      // Get execution IDs using the getter - much simpler!
+      const initialNonce = await aliceIdentity.getCurrentNonce();
+      const executionIds = [
+        Number(initialNonce) - 3,
+        Number(initialNonce) - 2,
+        Number(initialNonce) - 1,
+      ];
+
+      // Prepare mixed approve/reject operations
+      const approveData1 = aliceIdentity.interface.encodeFunctionData(
+        "approve",
+        [executionIds[0], true],
+      ); // Approve
+      const approveData2 = aliceIdentity.interface.encodeFunctionData(
+        "approve",
+        [executionIds[1], false],
+      ); // Reject
+      const approveData3 = aliceIdentity.interface.encodeFunctionData(
+        "approve",
+        [executionIds[2], true],
+      ); // Approve
+
+      // Execute mixed approvals via multicall
+      await aliceIdentity
+        .connect(aliceWallet)
+        .multicall([approveData1, approveData2, approveData3]);
+
+      // Verify results
+      const executionData1 = await aliceIdentity.getExecutionData(
+        executionIds[0],
+      );
+      const executionData2 = await aliceIdentity.getExecutionData(
+        executionIds[1],
+      );
+      const executionData3 = await aliceIdentity.getExecutionData(
+        executionIds[2],
+      );
+
+      expect(executionData1.approved).to.be.true;
+      expect(executionData1.executed).to.be.true;
+
+      expect(executionData2.approved).to.be.false;
+      expect(executionData2.executed).to.be.false;
+
+      expect(executionData3.approved).to.be.true;
+      expect(executionData3.executed).to.be.true;
+
+      // Verify that the multicall functionality worked by checking execution count
+      const finalNonce = await aliceIdentity.getCurrentNonce();
+      expect(finalNonce).to.be.greaterThan(0);
+    });
+  });
+});
