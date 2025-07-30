@@ -1,6 +1,6 @@
+import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { ClaimIssuer, ClaimIssuerFactory } from "../../typechain-types";
 
 describe("ClaimIssuerFactory", () => {
@@ -14,13 +14,13 @@ describe("ClaimIssuerFactory", () => {
 
     const ClaimIssuerContract = await ethers.getContractFactory("ClaimIssuer");
     claimIssuerImplementation = await ClaimIssuerContract.deploy(
-      deployer.address
+      deployer.address,
     );
 
     const ClaimIssuerFactoryContract =
       await ethers.getContractFactory("ClaimIssuerFactory");
     claimIssuerFactory = await ClaimIssuerFactoryContract.deploy(
-      await claimIssuerImplementation.getAddress()
+      await claimIssuerImplementation.getAddress(),
     );
   });
 
@@ -38,8 +38,8 @@ describe("ClaimIssuerFactory", () => {
       await claimIssuerFactory.getAddress(),
       ethers.zeroPadValue(deployer.address, 32),
       ethers.hexlify(
-        "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f"
-      )
+        "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f",
+      ),
     );
 
     const expectedAddress =
@@ -52,10 +52,10 @@ describe("ClaimIssuerFactory", () => {
     await claimIssuerFactory.connect(deployer).deployClaimIssuer();
 
     await expect(
-      claimIssuerFactory.connect(deployer).deployClaimIssuer()
+      claimIssuerFactory.connect(deployer).deployClaimIssuer(),
     ).to.be.revertedWithCustomError(
       claimIssuerFactory,
-      "ClaimIssuerAlreadyDeployed"
+      "ClaimIssuerAlreadyDeployed",
     );
   });
 
@@ -63,16 +63,18 @@ describe("ClaimIssuerFactory", () => {
     await expect(
       claimIssuerFactory
         .connect(deployer)
-        .deployClaimIssuerOnBehalf(ethers.ZeroAddress)
+        .deployClaimIssuerOnBehalf(ethers.ZeroAddress),
     ).to.be.revertedWithCustomError(claimIssuerFactory, "ZeroAddress");
   });
 
   it("should revert if blacklistAddress is not called by the owner", async () => {
     await expect(
-      claimIssuerFactory.connect(alice).blacklistAddress(deployer.address, true)
+      claimIssuerFactory
+        .connect(alice)
+        .blacklistAddress(deployer.address, true),
     ).to.be.revertedWithCustomError(
       claimIssuerFactory,
-      "OwnableUnauthorizedAccount"
+      "OwnableUnauthorizedAccount",
     );
   });
 
@@ -80,7 +82,7 @@ describe("ClaimIssuerFactory", () => {
     await expect(
       claimIssuerFactory
         .connect(deployer)
-        .blacklistAddress(ethers.ZeroAddress, true)
+        .blacklistAddress(ethers.ZeroAddress, true),
     ).to.be.revertedWithCustomError(claimIssuerFactory, "ZeroAddress");
   });
 
@@ -93,7 +95,7 @@ describe("ClaimIssuerFactory", () => {
       .withArgs(alice.address, true);
 
     expect(await claimIssuerFactory.isBlacklisted(alice.address)).to.equal(
-      true
+      true,
     );
   });
 
@@ -109,7 +111,7 @@ describe("ClaimIssuerFactory", () => {
       .to.emit(claimIssuerFactory, "Blacklisted")
       .withArgs(alice.address, false);
     expect(await claimIssuerFactory.isBlacklisted(alice.address)).to.equal(
-      false
+      false,
     );
   });
 
@@ -119,25 +121,27 @@ describe("ClaimIssuerFactory", () => {
       .blacklistAddress(alice.address, true);
 
     await expect(
-      claimIssuerFactory.connect(alice).deployClaimIssuer()
+      claimIssuerFactory.connect(alice).deployClaimIssuer(),
     ).to.be.revertedWithCustomError(claimIssuerFactory, "Blacklisted");
   });
 
   it("should revert if deployClaimIssuerOnBehalf is called by a non-owner", async () => {
     await expect(
-      claimIssuerFactory.connect(alice).deployClaimIssuerOnBehalf(alice.address)
+      claimIssuerFactory
+        .connect(alice)
+        .deployClaimIssuerOnBehalf(alice.address),
     ).to.be.revertedWithCustomError(
       claimIssuerFactory,
-      "OwnableUnauthorizedAccount"
+      "OwnableUnauthorizedAccount",
     );
   });
 
   it("should revert if updateImplementation is called by a non-owner", async () => {
     await expect(
-      claimIssuerFactory.connect(alice).updateImplementation(alice.address)
+      claimIssuerFactory.connect(alice).updateImplementation(alice.address),
     ).to.be.revertedWithCustomError(
       claimIssuerFactory,
-      "OwnableUnauthorizedAccount"
+      "OwnableUnauthorizedAccount",
     );
   });
 
@@ -145,6 +149,10 @@ describe("ClaimIssuerFactory", () => {
     const tx = await claimIssuerFactory
       .connect(deployer)
       .updateImplementation(alice.address);
+
+    // Check that the implementation address is updated
+    const implementationAddress = await claimIssuerFactory.implementation();
+    expect(implementationAddress).to.equal(alice.address);
 
     await expect(tx)
       .to.emit(claimIssuerFactory, "ImplementationUpdated")

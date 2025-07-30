@@ -11,7 +11,7 @@ describe("Identity", () => {
         describe("when the claim is not valid", () => {
           it("should add the claim anyway", async () => {
             const { aliceIdentity, aliceWallet } = await loadFixture(
-              deployIdentityFixture
+              deployIdentityFixture,
             );
 
             const claim = {
@@ -28,10 +28,10 @@ describe("Identity", () => {
                 ethers.keccak256(
                   ethers.AbiCoder.defaultAbiCoder().encode(
                     ["address", "uint256", "bytes"],
-                    [claim.identity, claim.topic, "0x101010"]
-                  )
-                )
-              )
+                    [claim.identity, claim.topic, "0x101010"],
+                  ),
+                ),
+              ),
             );
 
             const tx = await aliceIdentity
@@ -42,7 +42,7 @@ describe("Identity", () => {
                 claim.issuer,
                 claim.signature,
                 claim.data,
-                claim.uri
+                claim.uri,
               );
             await expect(tx)
               .to.emit(aliceIdentity, "ClaimAdded")
@@ -50,23 +50,23 @@ describe("Identity", () => {
                 ethers.keccak256(
                   ethers.AbiCoder.defaultAbiCoder().encode(
                     ["address", "uint256"],
-                    [claim.issuer, claim.topic]
-                  )
+                    [claim.issuer, claim.topic],
+                  ),
                 ),
                 claim.topic,
                 claim.scheme,
                 claim.issuer,
                 claim.signature,
                 claim.data,
-                claim.uri
+                claim.uri,
               );
             expect(
               await aliceIdentity.isClaimValid(
                 claim.identity,
                 claim.topic,
                 claim.signature,
-                claim.data
-              )
+                claim.data,
+              ),
             ).to.be.false;
           });
         });
@@ -83,7 +83,7 @@ describe("Identity", () => {
           };
           before(async () => {
             const { aliceIdentity, aliceWallet } = await loadFixture(
-              deployIdentityFixture
+              deployIdentityFixture,
             );
 
             claim = {
@@ -100,10 +100,10 @@ describe("Identity", () => {
                 ethers.keccak256(
                   ethers.AbiCoder.defaultAbiCoder().encode(
                     ["address", "uint256", "bytes"],
-                    [claim.identity, claim.topic, claim.data]
-                  )
-                )
-              )
+                    [claim.identity, claim.topic, claim.data],
+                  ),
+                ),
+              ),
             );
           });
 
@@ -137,15 +137,15 @@ describe("Identity", () => {
                   ethers.keccak256(
                     ethers.AbiCoder.defaultAbiCoder().encode(
                       ["address", "uint256"],
-                      [claim.issuer, claim.topic]
-                    )
+                      [claim.issuer, claim.topic],
+                    ),
                   ),
                   claim.topic,
                   claim.scheme,
                   claim.issuer,
                   claim.signature,
                   claim.data,
-                  claim.uri
+                  claim.uri,
                 );
               await expect(tx).to.emit(aliceIdentity, "Approved");
               await expect(tx).to.emit(aliceIdentity, "Executed");
@@ -154,8 +154,8 @@ describe("Identity", () => {
                   claim.identity,
                   claim.topic,
                   claim.signature,
-                  claim.data
-                )
+                  claim.data,
+                ),
               ).to.be.true;
             });
           });
@@ -164,7 +164,7 @@ describe("Identity", () => {
             it("should add the claim", async () => {
               it("should add the claim anyway", async () => {
                 const { aliceIdentity, aliceWallet } = await loadFixture(
-                  deployIdentityFixture
+                  deployIdentityFixture,
                 );
 
                 const tx = await aliceIdentity
@@ -175,7 +175,7 @@ describe("Identity", () => {
                     claim.issuer,
                     claim.signature,
                     claim.data,
-                    claim.uri
+                    claim.uri,
                   );
                 await expect(tx)
                   .to.emit(aliceIdentity, "ClaimAdded")
@@ -183,15 +183,15 @@ describe("Identity", () => {
                     ethers.keccak256(
                       ethers.AbiCoder.defaultAbiCoder().encode(
                         ["address", "uint256"],
-                        [claim.issuer, claim.topic]
-                      )
+                        [claim.issuer, claim.topic],
+                      ),
                     ),
                     claim.topic,
                     claim.scheme,
                     claim.issuer,
                     claim.signature,
                     claim.data,
-                    claim.uri
+                    claim.uri,
                   );
               });
             });
@@ -200,7 +200,7 @@ describe("Identity", () => {
           describe("when caller is not a CLAIM key", () => {
             it("should revert for missing permission", async () => {
               const { aliceIdentity, bobWallet } = await loadFixture(
-                deployIdentityFixture
+                deployIdentityFixture,
               );
 
               await expect(
@@ -212,11 +212,11 @@ describe("Identity", () => {
                     claim.issuer,
                     claim.signature,
                     claim.data,
-                    claim.uri
-                  )
+                    claim.uri,
+                  ),
               ).to.be.revertedWithCustomError(
                 aliceIdentity,
-                "SenderDoesNotHaveClaimSignerKey"
+                "SenderDoesNotHaveClaimSignerKey",
               );
             });
           });
@@ -247,10 +247,10 @@ describe("Identity", () => {
                 ethers.keccak256(
                   ethers.AbiCoder.defaultAbiCoder().encode(
                     ["address", "uint256", "bytes"],
-                    [claim.identity, claim.topic, "0x10101010"]
-                  )
-                )
-              )
+                    [claim.identity, claim.topic, "0x10101010"],
+                  ),
+                ),
+              ),
             );
 
             await expect(
@@ -262,8 +262,8 @@ describe("Identity", () => {
                   claim.issuer,
                   claim.signature,
                   claim.data,
-                  claim.uri
-                )
+                  claim.uri,
+                ),
             ).to.be.revertedWithCustomError(aliceIdentity, "InvalidClaim");
           });
         });
@@ -296,10 +296,10 @@ describe("Identity", () => {
                 ethers.keccak256(
                   ethers.AbiCoder.defaultAbiCoder().encode(
                     ["address", "uint256", "bytes"],
-                    [claim.identity, claim.topic, claim.data]
-                  )
-                )
-              )
+                    [claim.identity, claim.topic, claim.data],
+                  ),
+                ),
+              ),
             );
           });
 
@@ -333,15 +333,15 @@ describe("Identity", () => {
                   ethers.keccak256(
                     ethers.AbiCoder.defaultAbiCoder().encode(
                       ["address", "uint256"],
-                      [claim.issuer, claim.topic]
-                    )
+                      [claim.issuer, claim.topic],
+                    ),
                   ),
                   claim.topic,
                   claim.scheme,
                   claim.issuer,
                   claim.signature,
                   claim.data,
-                  claim.uri
+                  claim.uri,
                 );
               await expect(tx).to.emit(aliceIdentity, "Approved");
               await expect(tx).to.emit(aliceIdentity, "Executed");
@@ -352,7 +352,7 @@ describe("Identity", () => {
             it("should add the claim", async () => {
               it("should add the claim anyway", async () => {
                 const { aliceIdentity, aliceWallet } = await loadFixture(
-                  deployIdentityFixture
+                  deployIdentityFixture,
                 );
 
                 const tx = await aliceIdentity
@@ -363,7 +363,7 @@ describe("Identity", () => {
                     claim.issuer,
                     claim.signature,
                     claim.data,
-                    claim.uri
+                    claim.uri,
                   );
                 await expect(tx)
                   .to.emit(aliceIdentity, "ClaimAdded")
@@ -371,15 +371,15 @@ describe("Identity", () => {
                     ethers.keccak256(
                       ethers.AbiCoder.defaultAbiCoder().encode(
                         ["address", "uint256"],
-                        [claim.issuer, claim.topic]
-                      )
+                        [claim.issuer, claim.topic],
+                      ),
                     ),
                     claim.topic,
                     claim.scheme,
                     claim.issuer,
                     claim.signature,
                     claim.data,
-                    claim.uri
+                    claim.uri,
                   );
               });
             });
@@ -388,7 +388,7 @@ describe("Identity", () => {
           describe("when caller is not a CLAIM key", () => {
             it("should revert for missing permission", async () => {
               const { aliceIdentity, bobWallet } = await loadFixture(
-                deployIdentityFixture
+                deployIdentityFixture,
               );
 
               await expect(
@@ -400,11 +400,11 @@ describe("Identity", () => {
                     claim.issuer,
                     claim.signature,
                     claim.data,
-                    claim.uri
-                  )
+                    claim.uri,
+                  ),
               ).to.be.revertedWithCustomError(
                 aliceIdentity,
-                "SenderDoesNotHaveClaimSignerKey"
+                "SenderDoesNotHaveClaimSignerKey",
               );
             });
           });
@@ -439,10 +439,10 @@ describe("Identity", () => {
               ethers.keccak256(
                 ethers.AbiCoder.defaultAbiCoder().encode(
                   ["address", "uint256", "bytes"],
-                  [claim.identity, claim.topic, claim.data]
-                )
-              )
-            )
+                  [claim.identity, claim.topic, claim.data],
+                ),
+              ),
+            ),
           );
 
           await aliceIdentity
@@ -453,7 +453,7 @@ describe("Identity", () => {
               claim.issuer,
               claim.signature,
               claim.data,
-              claim.uri
+              claim.uri,
             );
         });
 
@@ -472,10 +472,10 @@ describe("Identity", () => {
               ethers.keccak256(
                 ethers.AbiCoder.defaultAbiCoder().encode(
                   ["address", "uint256", "bytes"],
-                  [claim.identity, claim.topic, claim.data]
-                )
-              )
-            )
+                  [claim.identity, claim.topic, claim.data],
+                ),
+              ),
+            ),
           );
 
           const tx = await aliceIdentity
@@ -486,7 +486,7 @@ describe("Identity", () => {
               claim.issuer,
               claim.signature,
               claim.data,
-              claim.uri
+              claim.uri,
             );
           await expect(tx)
             .to.emit(aliceIdentity, "ClaimChanged")
@@ -494,15 +494,15 @@ describe("Identity", () => {
               ethers.keccak256(
                 ethers.AbiCoder.defaultAbiCoder().encode(
                   ["address", "uint256"],
-                  [claim.issuer, claim.topic]
-                )
+                  [claim.issuer, claim.topic],
+                ),
               ),
               claim.topic,
               claim.scheme,
               claim.issuer,
               claim.signature,
               claim.data,
-              claim.uri
+              claim.uri,
             );
         });
       });
@@ -530,18 +530,18 @@ describe("Identity", () => {
           const claimId = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(
               ["address", "uint256"],
-              [claim.issuer, claim.topic]
-            )
+              [claim.issuer, claim.topic],
+            ),
           );
           claim.signature = await claimIssuerWallet.signMessage(
             ethers.getBytes(
               ethers.keccak256(
                 ethers.AbiCoder.defaultAbiCoder().encode(
                   ["address", "uint256", "bytes"],
-                  [claim.identity, claim.topic, claim.data]
-                )
-              )
-            )
+                  [claim.identity, claim.topic, claim.data],
+                ),
+              ),
+            ),
           );
 
           await aliceIdentity
@@ -552,7 +552,7 @@ describe("Identity", () => {
               claim.issuer,
               claim.signature,
               claim.data,
-              claim.uri
+              claim.uri,
             );
 
           const action = {
@@ -576,7 +576,7 @@ describe("Identity", () => {
               claim.issuer,
               claim.signature,
               claim.data,
-              claim.uri
+              claim.uri,
             );
         });
       });
@@ -584,21 +584,21 @@ describe("Identity", () => {
       describe("When caller is not a CLAIM key", () => {
         it("should revert for missing permission", async () => {
           const { aliceIdentity, bobWallet, claimIssuer } = await loadFixture(
-            deployIdentityFixture
+            deployIdentityFixture,
           );
 
           const claimId = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(
               ["address", "uint256"],
-              [await claimIssuer.getAddress(), 42]
-            )
+              [await claimIssuer.getAddress(), 42],
+            ),
           );
 
           await expect(
-            aliceIdentity.connect(bobWallet).removeClaim(claimId)
+            aliceIdentity.connect(bobWallet).removeClaim(claimId),
           ).to.be.revertedWithCustomError(
             aliceIdentity,
-            "SenderDoesNotHaveClaimSignerKey"
+            "SenderDoesNotHaveClaimSignerKey",
           );
         });
       });
@@ -606,18 +606,18 @@ describe("Identity", () => {
       describe("When claim does not exist", () => {
         it("should revert for non existing claim", async () => {
           const { aliceIdentity, carolWallet, claimIssuer } = await loadFixture(
-            deployIdentityFixture
+            deployIdentityFixture,
           );
 
           const claimId = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(
               ["address", "uint256"],
-              [await claimIssuer.getAddress(), 42]
-            )
+              [await claimIssuer.getAddress(), 42],
+            ),
           );
 
           await expect(
-            aliceIdentity.connect(carolWallet).removeClaim(claimId)
+            aliceIdentity.connect(carolWallet).removeClaim(claimId),
           ).to.be.revertedWithCustomError(aliceIdentity, "ClaimNotRegistered");
         });
       });
@@ -638,18 +638,18 @@ describe("Identity", () => {
           const claimId = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(
               ["address", "uint256"],
-              [claim.issuer, claim.topic]
-            )
+              [claim.issuer, claim.topic],
+            ),
           );
           claim.signature = await claimIssuerWallet.signMessage(
             ethers.getBytes(
               ethers.keccak256(
                 ethers.AbiCoder.defaultAbiCoder().encode(
                   ["address", "uint256", "bytes"],
-                  [claim.identity, claim.topic, claim.data]
-                )
-              )
-            )
+                  [claim.identity, claim.topic, claim.data],
+                ),
+              ),
+            ),
           );
 
           await aliceIdentity
@@ -660,7 +660,7 @@ describe("Identity", () => {
               claim.issuer,
               claim.signature,
               claim.data,
-              claim.uri
+              claim.uri,
             );
 
           const tx = await aliceIdentity
@@ -675,9 +675,117 @@ describe("Identity", () => {
               claim.issuer,
               claim.signature,
               claim.data,
-              claim.uri
+              claim.uri,
             );
         });
+      });
+    });
+
+    describe("removeClaim edge cases", () => {
+      it("should cover the claimIndex >= arrayLength edge case in removeClaim", async () => {
+        const { aliceIdentity, aliceWallet, claimIssuer, claimIssuerWallet } =
+          await loadFixture(deployIdentityFixture);
+
+        // Add a claim first
+        const topic = 42;
+        const claim = {
+          identity: await aliceIdentity.getAddress(),
+          issuer: await claimIssuer.getAddress(),
+          topic,
+          scheme: 1,
+          data: "0x0042",
+          signature: "",
+          uri: "https://example.com",
+        };
+        const claimId = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address", "uint256"],
+            [claim.issuer, claim.topic],
+          ),
+        );
+        claim.signature = await claimIssuerWallet.signMessage(
+          ethers.getBytes(
+            ethers.keccak256(
+              ethers.AbiCoder.defaultAbiCoder().encode(
+                ["address", "uint256", "bytes"],
+                [claim.identity, claim.topic, claim.data],
+              ),
+            ),
+          ),
+        );
+        await aliceIdentity
+          .connect(aliceWallet)
+          .addClaim(
+            claim.topic,
+            claim.scheme,
+            claim.issuer,
+            claim.signature,
+            claim.data,
+            claim.uri,
+          );
+
+        // Add another claim with the same topic
+        const claim2 = {
+          identity: await aliceIdentity.getAddress(),
+          issuer: await aliceIdentity.getAddress(),
+          topic,
+          scheme: 1,
+          data: "0x0043",
+          signature: "",
+          uri: "https://example2.com",
+        };
+        claim2.signature = await aliceWallet.signMessage(
+          ethers.getBytes(
+            ethers.keccak256(
+              ethers.AbiCoder.defaultAbiCoder().encode(
+                ["address", "uint256", "bytes"],
+                [claim2.identity, claim2.topic, claim2.data],
+              ),
+            ),
+          ),
+        );
+        const claimId2 = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address", "uint256"],
+            [claim2.issuer, claim2.topic],
+          ),
+        );
+        await aliceIdentity
+          .connect(aliceWallet)
+          .addClaim(
+            claim2.topic,
+            claim2.scheme,
+            claim2.issuer,
+            claim2.signature,
+            claim2.data,
+            claim2.uri,
+          );
+
+        // Now remove the second claim first, which will leave the first claim in the array
+        await aliceIdentity.connect(aliceWallet).removeClaim(claimId2);
+
+        // Now remove the first claim - this should trigger the edge case
+        // because the claim exists in the mapping but the array might be in an inconsistent state
+        const tx = await aliceIdentity
+          .connect(aliceWallet)
+          .removeClaim(claimId);
+
+        await expect(tx)
+          .to.emit(aliceIdentity, "ClaimRemoved")
+          .withArgs(
+            claimId,
+            claim.topic,
+            claim.scheme,
+            claim.issuer,
+            claim.signature,
+            claim.data,
+            claim.uri,
+          );
+
+        // Verify the claim was removed
+        const retrievedClaim = await aliceIdentity.getClaim(claimId);
+        expect(retrievedClaim.topic).to.equal(0);
+        expect(retrievedClaim.issuer).to.equal(ethers.ZeroAddress);
       });
     });
 
@@ -685,13 +793,13 @@ describe("Identity", () => {
       describe("when claim does not exist", () => {
         it("should return an empty struct", async () => {
           const { aliceIdentity, claimIssuer } = await loadFixture(
-            deployIdentityFixture
+            deployIdentityFixture,
           );
           const claimId = ethers.keccak256(
             ethers.AbiCoder.defaultAbiCoder().encode(
               ["address", "uint256"],
-              [await claimIssuer.getAddress(), 42]
-            )
+              [await claimIssuer.getAddress(), 42],
+            ),
           );
           const found = await aliceIdentity.getClaim(claimId);
           expect(found.issuer).to.equal(ethers.ZeroAddress);
@@ -706,7 +814,7 @@ describe("Identity", () => {
       describe("when claim does exist", () => {
         it("should return the claim", async () => {
           const { aliceIdentity, aliceClaim666 } = await loadFixture(
-            deployIdentityFixture
+            deployIdentityFixture,
           );
 
           const found = await aliceIdentity.getClaim(aliceClaim666.id);
@@ -725,17 +833,17 @@ describe("Identity", () => {
         const { aliceIdentity } = await loadFixture(deployIdentityFixture);
 
         expect(await aliceIdentity.getClaimIdsByTopic(101010)).to.deep.equal(
-          []
+          [],
         );
       });
 
       it("should return an array of claim Id existing fo the topic", async () => {
         const { aliceIdentity, aliceClaim666 } = await loadFixture(
-          deployIdentityFixture
+          deployIdentityFixture,
         );
 
         expect(
-          await aliceIdentity.getClaimIdsByTopic(aliceClaim666.topic)
+          await aliceIdentity.getClaimIdsByTopic(aliceClaim666.topic),
         ).to.deep.equal([aliceClaim666.id]);
       });
     });

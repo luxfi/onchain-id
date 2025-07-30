@@ -1,5 +1,3 @@
 module.exports = {
-    skipFiles: [
-        "_testContracts",
-    ],
+  skipFiles: ["_testContracts", "libraries/FormatResolver.sol"],
 };

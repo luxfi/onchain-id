@@ -1,7 +1,7 @@
 import "@nomicfoundation/hardhat-toolbox";
+import "@nomiclabs/hardhat-solhint";
 import { HardhatUserConfig } from "hardhat/config";
 import "solidity-coverage";
-import "@nomiclabs/hardhat-solhint";
 
 import "./tasks/add-claim.task";
 import "./tasks/add-key.task";
