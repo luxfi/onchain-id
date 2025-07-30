@@ -19,8 +19,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Install dependencies
         run: npm ci
-      - name: Lint sources
+      - name: Run Hardhat check
         run: npm run lint
+      - name: Run Solhint
+        run: npx solhint 'contracts/**/*.sol' --max-warnings 0
 
   unit_test:
     name: Unit tests
