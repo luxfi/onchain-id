@@ -481,5 +481,60 @@ describe("ClaimIssuer - Add claim to another identity", function () {
         expect(claim.uri).to.equal(newClaim.uri);
       });
     });
+
+    describe("when addClaimTo is called with invalid identity contract without execute function", function () {
+      it("should revert with CallFailed error when identity contract lacks execute function", async function () {
+        const { claimIssuer, claimIssuerWallet } = await loadFixture(
+          deployIdentityFixture,
+        );
+
+        // Deploy the Test contract as an invalid identity contract
+        const Test = await ethers.getContractFactory("Test");
+        const invalidIdentity = await Test.deploy();
+
+        // Create a claim for the invalid identity
+        const invalidClaim = {
+          identity: await invalidIdentity.getAddress(),
+          issuer: await claimIssuer.getAddress(),
+          topic: 999,
+          scheme: 1,
+          data: "0x0099",
+          signature: "",
+          uri: "https://example.com/invalid-claim",
+        };
+
+        invalidClaim.signature = await claimIssuerWallet.signMessage(
+          ethers.getBytes(
+            ethers.keccak256(
+              ethers.AbiCoder.defaultAbiCoder().encode(
+                ["address", "uint256", "bytes"],
+                [invalidClaim.identity, invalidClaim.topic, invalidClaim.data],
+              ),
+            ),
+          ),
+        );
+
+        // Add ClaimIssuer as claim signing key (purpose 3) to the invalid identity
+        // This will make isClaimValid return true, but the execute call will fail
+        const claimIssuerKey = ethers.keccak256(
+          ethers.AbiCoder.defaultAbiCoder().encode(
+            ["address"],
+            [await claimIssuer.getAddress()],
+          ),
+        );
+
+        // Try to add claim to invalid identity - this should fail at line 86
+        await expect(
+          claimIssuer.addClaimTo(
+            invalidClaim.topic,
+            invalidClaim.scheme,
+            invalidClaim.signature,
+            invalidClaim.data,
+            invalidClaim.uri,
+            invalidClaim.identity,
+          ),
+        ).to.be.revertedWithCustomError(claimIssuer, "CallFailed");
+      });
+    });
   });
 });
