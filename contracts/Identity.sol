@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.27;
 
-import {IIdentity} from "./interface/IIdentity.sol";
-import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
-import {IERC734} from "./interface/IERC734.sol";
-import {IERC735} from "./interface/IERC735.sol";
-import {Version} from "./version/Version.sol";
-import {Storage} from "./storage/Storage.sol";
-import {Errors} from "./libraries/Errors.sol";
-import {KeyPurposes} from "./libraries/KeyPurposes.sol";
-import {KeyTypes} from "./libraries/KeyTypes.sol";
+import { IIdentity } from "./interface/IIdentity.sol";
+import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
+import { IERC734 } from "./interface/IERC734.sol";
+import { IERC735 } from "./interface/IERC735.sol";
+import { Version } from "./version/Version.sol";
+import { Storage } from "./storage/Storage.sol";
+import { Errors } from "./libraries/Errors.sol";
+import { KeyPurposes } from "./libraries/KeyPurposes.sol";
 
-import {MulticallUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import { MulticallUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @dev Implementation of the `IERC734` "KeyHolder" and the `IERC735` "ClaimHolder" interfaces

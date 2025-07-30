@@ -18,6 +18,6 @@ interface IIdentity is IERC734, IERC735 {
         IIdentity _identity,
         uint256 claimTopic,
         bytes calldata sig,
-        bytes calldata data)
-    external view returns (bool);
+        bytes calldata data
+    ) external view returns (bool);
 }

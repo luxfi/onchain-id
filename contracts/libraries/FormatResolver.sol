@@ -4,11 +4,11 @@ pragma solidity ^0.8.27;
 library FormatResolver {
     /// @notice The formats we currently support
     enum FormatType {
-        Unknown,    // 0
+        Unknown, // 0
         StringType, // 1
         TripleUint, // 2  => struct {uint256;uint256;uint256}
         Uint16Type, // 3
-        StringArray,// 4
+        StringArray, // 4
         AddressType // 5
     }
 
@@ -23,7 +23,9 @@ library FormatResolver {
     }
 
     /// @notice Decode a `string` from raw bytes
-    function decodeString(bytes memory data) internal pure returns (string memory) {
+    function decodeString(
+        bytes memory data
+    ) internal pure returns (string memory) {
         return abi.decode(data, (string));
     }
 
@@ -42,7 +44,9 @@ library FormatResolver {
     }
 
     /// @notice Decode a `string[]` from raw bytes
-    function decodeStringArray(bytes memory data) internal pure returns (string[] memory) {
+    function decodeStringArray(
+        bytes memory data
+    ) internal pure returns (string[] memory) {
         return abi.decode(data, (string[]));
     }
 

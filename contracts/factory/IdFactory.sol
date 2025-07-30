@@ -10,9 +10,7 @@ import { Errors } from "../libraries/Errors.sol";
 import { KeyPurposes } from "../libraries/KeyPurposes.sol";
 import { KeyTypes } from "../libraries/KeyTypes.sol";
 
-
 contract IdFactory is IIdFactory, Ownable {
-
     mapping(address => bool) private _tokenFactories;
 
     // address of the _implementationAuthority contract making the link to the implementation contract
@@ -34,10 +32,12 @@ contract IdFactory is IIdFactory, Ownable {
     // token linked to an ONCHAINID
     mapping(address => address) private _tokenAddress;
 
-
     // setting
-    constructor (address implementationAuthorityAddress) Ownable(msg.sender) {
-        require(implementationAuthorityAddress != address(0), Errors.ZeroAddress());
+    constructor(address implementationAuthorityAddress) Ownable(msg.sender) {
+        require(
+            implementationAuthorityAddress != address(0),
+            Errors.ZeroAddress()
+        );
         implementationAuthority = implementationAuthorityAddress;
     }
 
@@ -66,13 +66,19 @@ contract IdFactory is IIdFactory, Ownable {
      */
     function createIdentity(
         address _wallet,
-        string memory _salt)
-    external onlyOwner override returns (address) {
+        string memory _salt
+    ) external override onlyOwner returns (address) {
         require(_wallet != address(0), Errors.ZeroAddress());
-        require(keccak256(abi.encode(_salt)) != keccak256(abi.encode("")), Errors.EmptyString());
-        string memory oidSalt = string.concat("OID",_salt);
-        require (!_saltTaken[oidSalt], Errors.SaltTaken(oidSalt));
-        require (_userIdentity[_wallet] == address(0), Errors.WalletAlreadyLinkedToIdentity(_wallet));
+        require(
+            keccak256(abi.encode(_salt)) != keccak256(abi.encode("")),
+            Errors.EmptyString()
+        );
+        string memory oidSalt = string.concat("OID", _salt);
+        require(!_saltTaken[oidSalt], Errors.SaltTaken(oidSalt));
+        require(
+            _userIdentity[_wallet] == address(0),
+            Errors.WalletAlreadyLinkedToIdentity(_wallet)
+        );
         address identity = _deployIdentity(oidSalt, _wallet);
         _saltTaken[oidSalt] = true;
         _userIdentity[_wallet] = identity;
@@ -88,20 +94,27 @@ contract IdFactory is IIdFactory, Ownable {
         address _wallet,
         string memory _salt,
         bytes32[] memory _managementKeys
-    ) external onlyOwner override returns (address) {
+    ) external override onlyOwner returns (address) {
         require(_wallet != address(0), Errors.ZeroAddress());
-        require(keccak256(abi.encode(_salt)) != keccak256(abi.encode("")), Errors.EmptyString());
-        string memory oidSalt = string.concat("OID",_salt);
-        require (!_saltTaken[oidSalt], Errors.SaltTaken(oidSalt));
-        require (_userIdentity[_wallet] == address(0), Errors.WalletAlreadyLinkedToIdentity(_wallet));
+        require(
+            keccak256(abi.encode(_salt)) != keccak256(abi.encode("")),
+            Errors.EmptyString()
+        );
+        string memory oidSalt = string.concat("OID", _salt);
+        require(!_saltTaken[oidSalt], Errors.SaltTaken(oidSalt));
+        require(
+            _userIdentity[_wallet] == address(0),
+            Errors.WalletAlreadyLinkedToIdentity(_wallet)
+        );
         require(_managementKeys.length > 0, Errors.EmptyListOfKeys());
 
         address identity = _deployIdentity(oidSalt, address(this));
 
         for (uint256 i = 0; i < _managementKeys.length; i++) {
             require(
-                _managementKeys[i] != keccak256(abi.encode(_wallet))
-                , Errors.WalletAlsoListedInManagementKeys(_wallet));
+                _managementKeys[i] != keccak256(abi.encode(_wallet)),
+                Errors.WalletAlsoListedInManagementKeys(_wallet)
+            );
             IERC734(identity).addKey(
                 _managementKeys[i],
                 KeyPurposes.MANAGEMENT,
@@ -128,15 +141,24 @@ contract IdFactory is IIdFactory, Ownable {
     function createTokenIdentity(
         address _token,
         address _tokenOwner,
-        string memory _salt)
-    external override returns (address) {
-        require(isTokenFactory(msg.sender) || msg.sender == owner(), OwnableUnauthorizedAccount(msg.sender));
+        string memory _salt
+    ) external override returns (address) {
+        require(
+            isTokenFactory(msg.sender) || msg.sender == owner(),
+            OwnableUnauthorizedAccount(msg.sender)
+        );
         require(_token != address(0), Errors.ZeroAddress());
         require(_tokenOwner != address(0), Errors.ZeroAddress());
-        require(keccak256(abi.encode(_salt)) != keccak256(abi.encode("")), Errors.EmptyString());
-        string memory tokenIdSalt = string.concat("Token",_salt);
+        require(
+            keccak256(abi.encode(_salt)) != keccak256(abi.encode("")),
+            Errors.EmptyString()
+        );
+        string memory tokenIdSalt = string.concat("Token", _salt);
         require(!_saltTaken[tokenIdSalt], Errors.SaltTaken(tokenIdSalt));
-        require(_tokenIdentity[_token] == address(0), Errors.TokenAlreadyLinked(_token));
+        require(
+            _tokenIdentity[_token] == address(0),
+            Errors.TokenAlreadyLinked(_token)
+        );
         address identity = _deployIdentity(tokenIdSalt, _tokenOwner);
         _saltTaken[tokenIdSalt] = true;
         _tokenIdentity[_token] = identity;
@@ -150,11 +172,23 @@ contract IdFactory is IIdFactory, Ownable {
      */
     function linkWallet(address _newWallet) external override {
         require(_newWallet != address(0), Errors.ZeroAddress());
-        require(_userIdentity[msg.sender] != address(0), Errors.WalletNotLinkedToIdentity(msg.sender));
-        require(_userIdentity[_newWallet] == address(0), Errors.WalletAlreadyLinkedToIdentity(_newWallet));
-        require(_tokenIdentity[_newWallet] == address(0), Errors.TokenAlreadyLinked(_newWallet));
+        require(
+            _userIdentity[msg.sender] != address(0),
+            Errors.WalletNotLinkedToIdentity(msg.sender)
+        );
+        require(
+            _userIdentity[_newWallet] == address(0),
+            Errors.WalletAlreadyLinkedToIdentity(_newWallet)
+        );
+        require(
+            _tokenIdentity[_newWallet] == address(0),
+            Errors.TokenAlreadyLinked(_newWallet)
+        );
         address identity = _userIdentity[msg.sender];
-        require(_wallets[identity].length < 101, Errors.MaxWalletsPerIdentityExceeded());
+        require(
+            _wallets[identity].length < 101,
+            Errors.MaxWalletsPerIdentityExceeded()
+        );
         _userIdentity[_newWallet] = identity;
         _wallets[identity].push(_newWallet);
         emit WalletLinked(_newWallet, identity);
@@ -165,8 +199,14 @@ contract IdFactory is IIdFactory, Ownable {
      */
     function unlinkWallet(address _oldWallet) external override {
         require(_oldWallet != address(0), Errors.ZeroAddress());
-        require(_oldWallet != msg.sender, Errors.CannotBeCalledOnSenderAddress());
-        require(_userIdentity[msg.sender] == _userIdentity[_oldWallet], Errors.OnlyLinkedWalletCanUnlink());
+        require(
+            _oldWallet != msg.sender,
+            Errors.CannotBeCalledOnSenderAddress()
+        );
+        require(
+            _userIdentity[msg.sender] == _userIdentity[_oldWallet],
+            Errors.OnlyLinkedWalletCanUnlink()
+        );
         address _identity = _userIdentity[_oldWallet];
         delete _userIdentity[_oldWallet];
         uint256 length = _wallets[_identity].length;
@@ -183,8 +223,10 @@ contract IdFactory is IIdFactory, Ownable {
     /**
      *  @dev See {IdFactory-getIdentity}.
      */
-    function getIdentity(address _wallet) external override view returns (address) {
-        if(_tokenIdentity[_wallet] != address(0)) {
+    function getIdentity(
+        address _wallet
+    ) external view override returns (address) {
+        if (_tokenIdentity[_wallet] != address(0)) {
             return _tokenIdentity[_wallet];
         }
 
@@ -194,40 +236,51 @@ contract IdFactory is IIdFactory, Ownable {
     /**
      *  @dev See {IdFactory-isSaltTaken}.
      */
-    function isSaltTaken(string calldata _salt) external override view returns (bool) {
+    function isSaltTaken(
+        string calldata _salt
+    ) external view override returns (bool) {
         return _saltTaken[_salt];
     }
 
     /**
      *  @dev See {IdFactory-getWallets}.
      */
-    function getWallets(address _identity) external override view returns (address[] memory) {
+    function getWallets(
+        address _identity
+    ) external view override returns (address[] memory) {
         return _wallets[_identity];
     }
 
     /**
      *  @dev See {IdFactory-getToken}.
      */
-    function getToken(address _identity) external override view returns (address) {
+    function getToken(
+        address _identity
+    ) external view override returns (address) {
         return _tokenAddress[_identity];
     }
 
     /**
      *  @dev See {IdFactory-isTokenFactory}.
      */
-    function isTokenFactory(address _factory) public override view returns(bool) {
+    function isTokenFactory(
+        address _factory
+    ) public view override returns (bool) {
         return _tokenFactories[_factory];
     }
 
     // deploy function with create2 opcode call
     // returns the address of the contract created
-    function _deploy(string memory salt, bytes memory bytecode) private returns (address) {
+    function _deploy(
+        string memory salt,
+        bytes memory bytecode
+    ) private returns (address) {
         bytes32 saltBytes = bytes32(keccak256(abi.encodePacked(salt)));
         address addr;
         // solhint-disable-next-line no-inline-assembly
         assembly {
             let encoded_data := add(0x20, bytecode) // load initialization code.
-            let encoded_size := mload(bytecode)     // load init code's length.
+            let encoded_size := mload(bytecode) // load init code's length.
             addr := create2(0, encoded_data, encoded_size, saltBytes)
             if iszero(extcodesize(addr)) {
                 revert(0, 0)
@@ -238,9 +291,15 @@ contract IdFactory is IIdFactory, Ownable {
     }
 
     // function used to deploy an identity using CREATE2
-    function _deployIdentity(string memory _salt, address _wallet) private returns (address) {
+    function _deployIdentity(
+        string memory _salt,
+        address _wallet
+    ) private returns (address) {
         bytes memory _code = type(IdentityProxy).creationCode;
-        bytes memory _constructData = abi.encode(implementationAuthority, _wallet);
+        bytes memory _constructData = abi.encode(
+            implementationAuthority,
+            _wallet
+        );
         bytes memory bytecode = abi.encodePacked(_code, _constructData);
         return _deploy(_salt, bytecode);
     }
