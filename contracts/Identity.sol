@@ -85,21 +85,6 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @dev See {IERC165-supportsInterface}.
-     * @notice Returns true if this contract implements the interface defined by interfaceId
-     * @param interfaceId The interface identifier, as specified in ERC-165
-     * @return true if the interface is supported, false otherwise
-     */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) external pure returns (bool) {
-        return (interfaceId == type(IERC165).interfaceId ||
-            interfaceId == type(IERC734).interfaceId ||
-            interfaceId == type(IERC735).interfaceId ||
-            interfaceId == type(IIdentity).interfaceId);
-    }
-
-    /**
      * @dev See {IERC734-execute}.
      * @notice Passes an execution instruction to the keymanager.
      * If the sender is an ACTION key and the destination address is not the identity contract itself, then the
@@ -128,6 +113,21 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         }
 
         return _executionId;
+    }
+
+    /**
+     * @dev See {IERC165-supportsInterface}.
+     * @notice Returns true if this contract implements the interface defined by interfaceId
+     * @param interfaceId The interface identifier, as specified in ERC-165
+     * @return true if the interface is supported, false otherwise
+     */
+    function supportsInterface(
+        bytes4 interfaceId
+    ) external pure returns (bool) {
+        return (interfaceId == type(IERC165).interfaceId ||
+            interfaceId == type(IERC734).interfaceId ||
+            interfaceId == type(IERC735).interfaceId ||
+            interfaceId == type(IIdentity).interfaceId);
     }
 
     /**
@@ -214,6 +214,8 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
      * 4: ENCRYPTION keys, used to encrypt data e.g. hold in claims.
      * MUST only be done by keys of purpose 1, or the identity itself.
      * If its the identity itself, the approval process will determine its approval.
+     *
+     * @dev This function uses O(1) index mappings for efficient lookups and updates.
      * @param _key keccak256 representation of an ethereum address
      * @param _type type of key used, which would be a uint256 for different key types. e.g. 1 = ECDSA, 2 = RSA, etc.
      * @param _purpose a uint256 specifying the key type, like 1 = MANAGEMENT, 2 = ACTION, 3 = CLAIM, 4 = ENCRYPTION
@@ -224,31 +226,29 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         uint256 _purpose,
         uint256 _type
     ) public override delegatedOnly onlyManager returns (bool success) {
-        if (_keys[_key].key == _key) {
-            uint256[] memory _purposes = _keys[_key].purposes;
-            for (
-                uint256 keyPurposeIndex = 0;
-                keyPurposeIndex < _purposes.length;
-                keyPurposeIndex++
-            ) {
-                uint256 purpose = _purposes[keyPurposeIndex];
+        // 1. Early validation: Reject if key already has this purpose (O(1) lookup)
+        require(
+            _purposeIndexInKey[_key][_purpose] == 0,
+            Errors.KeyAlreadyHasPurpose(_key, _purpose)
+        );
 
-                if (purpose == _purpose) {
-                    revert Errors.KeyAlreadyHasPurpose(_key, _purpose);
-                }
-            }
+        Key storage k = _keys[_key];
 
-            _keys[_key].purposes.push(_purpose);
-        } else {
-            _keys[_key].key = _key;
-            _keys[_key].purposes = [_purpose];
-            _keys[_key].keyType = _type;
+        // 2. Initialize new key if it doesn't exist yet
+        if (k.key == bytes32(0)) {
+            k.key = _key;
+            k.keyType = _type;
         }
 
+        // 3. Add purpose to key.purposes array and update index mapping
+        k.purposes.push(_purpose);
+        _purposeIndexInKey[_key][_purpose] = k.purposes.length; // Store 1-based index
+
+        // 4. Add key to _keysByPurpose array and update index mapping
         _keysByPurpose[_purpose].push(_key);
+        _keyIndexInPurpose[_purpose][_key] = _keysByPurpose[_purpose].length; // Store 1-based index
 
         emit KeyAdded(_key, _purpose, _type);
-
         return true;
     }
 
@@ -387,50 +387,86 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     /**
      * @dev See {IERC734-removeKey}.
      * @notice Remove the purpose from a key.
+     *
+     * @dev This function uses O(1) index mappings and efficient swap-and-pop technique
+     * to maintain array consistency without gaps, ensuring optimal gas usage.
+     * @param _key The key to remove the purpose from
+     * @param _purpose The purpose to remove from the key
+     * @return success Returns TRUE if the removal was successful
      */
     function removeKey(
         bytes32 _key,
         uint256 _purpose
     ) public override delegatedOnly onlyManager returns (bool success) {
-        require(_keys[_key].key == _key, Errors.KeyNotRegistered(_key));
-        uint256[] memory _purposes = _keys[_key].purposes;
+        // Fetch the key data for efficient access
+        Key storage k = _keys[_key];
 
-        uint256 purposeIndex = 0;
-        while (_purposes[purposeIndex] != _purpose) {
-            purposeIndex++;
+        // 1. Validate key exists
+        require(k.key == _key, Errors.KeyNotRegistered(_key));
 
-            if (purposeIndex == _purposes.length) {
-                revert Errors.KeyDoesNotHavePurpose(_key, _purpose);
-            }
+        // 2. Validate key has the specified purpose (O(1) lookup)
+        uint256 purposeIdxPlusOne = _purposeIndexInKey[_key][_purpose];
+        require(
+            purposeIdxPlusOne > 0,
+            Errors.KeyDoesNotHavePurpose(_key, _purpose)
+        );
+        uint256 purposeIdx = purposeIdxPlusOne - 1; // Convert to 0-based index
+
+        // ===========================================
+        // STEP 1: REMOVE PURPOSE FROM KEY STRUCT
+        // ===========================================
+
+        uint256 lastPurposeIdx = k.purposes.length - 1;
+
+        if (purposeIdx != lastPurposeIdx) {
+            // Swap-and-pop: Move last element to current position to maintain array consistency
+            uint256 lastPurpose = k.purposes[lastPurposeIdx];
+            k.purposes[purposeIdx] = lastPurpose;
+
+            // Update index mapping for the swapped purpose
+            _purposeIndexInKey[_key][lastPurpose] = purposeIdx + 1;
         }
 
-        _purposes[purposeIndex] = _purposes[_purposes.length - 1];
-        _keys[_key].purposes = _purposes;
-        _keys[_key].purposes.pop();
+        // Remove the last element (either the target or the swapped element)
+        k.purposes.pop();
 
-        uint256 keyIndex = 0;
-        uint256 arrayLength = _keysByPurpose[_purpose].length;
+        // Clean up the index mapping for the removed purpose
+        delete _purposeIndexInKey[_key][_purpose];
 
-        while (_keysByPurpose[_purpose][keyIndex] != _key) {
-            keyIndex++;
+        // ===========================================
+        // STEP 2: REMOVE KEY FROM PURPOSE INDEX
+        // ===========================================
 
-            if (keyIndex >= arrayLength) {
-                break;
-            }
+        uint256 keyIdxPlusOne = _keyIndexInPurpose[_purpose][_key];
+        uint256 keyIdx = keyIdxPlusOne - 1; // Convert to 0-based index
+
+        uint256 lastKeyIdx = _keysByPurpose[_purpose].length - 1;
+
+        if (keyIdx != lastKeyIdx) {
+            // Swap-and-pop: Move last key to current position
+            bytes32 lastKey = _keysByPurpose[_purpose][lastKeyIdx];
+            _keysByPurpose[_purpose][keyIdx] = lastKey;
+
+            // Update index mapping for the swapped key
+            _keyIndexInPurpose[_purpose][lastKey] = keyIdx + 1;
         }
 
-        _keysByPurpose[_purpose][keyIndex] = _keysByPurpose[_purpose][
-            arrayLength - 1
-        ];
+        // Remove the last key (either the target or the swapped key)
         _keysByPurpose[_purpose].pop();
 
-        uint256 keyType = _keys[_key].keyType;
+        // Clean up the index mapping for this key in the purpose group
+        delete _keyIndexInPurpose[_purpose][_key];
 
-        if (_purposes.length - 1 == 0) {
+        // ===========================================
+        // STEP 3: EMIT EVENT AND CLEANUP
+        // ===========================================
+
+        emit KeyRemoved(_key, _purpose, k.keyType);
+
+        // If key has no more purposes, delete the entire key struct to save gas
+        if (k.purposes.length == 0) {
             delete _keys[_key];
         }
-
-        emit KeyRemoved(_key, _purpose, keyType);
 
         return true;
     }
@@ -608,26 +644,26 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     /**
      * @dev See {IERC734-keyHasPurpose}.
      * @notice Returns true if the key has MANAGEMENT purpose or the specified purpose.
+     *
+     * @dev This function uses O(1) index mappings for efficient lookups instead of
+     * linear search through the purposes array. MANAGEMENT keys have universal
+     * permissions, so any key with MANAGEMENT purpose will return true for any purpose.
+     * @param _key The key to check
+     * @param _purpose The purpose to check for
+     * @return result True if the key has the specified purpose or MANAGEMENT purpose
      */
     function keyHasPurpose(
         bytes32 _key,
         uint256 _purpose
     ) public view override returns (bool result) {
-        Key memory key = _keys[_key];
-        if (key.key == 0) return false;
+        // Early return if key doesn't exist
+        if (_keys[_key].key == 0) return false;
 
-        for (
-            uint256 keyPurposeIndex = 0;
-            keyPurposeIndex < key.purposes.length;
-            keyPurposeIndex++
-        ) {
-            uint256 purpose = key.purposes[keyPurposeIndex];
-
-            if (purpose == KeyPurposes.MANAGEMENT || purpose == _purpose)
-                return true;
-        }
-
-        return false;
+        // O(1) lookup: Check if key has the specific purpose OR MANAGEMENT purpose
+        // MANAGEMENT keys have universal permissions in the ERC-734 standard
+        return
+            _purposeIndexInKey[_key][_purpose] > 0 ||
+            _purposeIndexInKey[_key][KeyPurposes.MANAGEMENT] > 0;
     }
 
     /**
@@ -702,6 +738,8 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     /**
      * @notice Initializer internal function for the Identity contract.
      *
+     * @dev This function sets up the initial management key and initializes all
+     * storage mappings including the new index mappings for efficient key management.
      * @param initialManagementKey The ethereum address to be set as the management key of the ONCHAINID.
      */
     // solhint-disable-next-line func-name-mixedcase
@@ -713,11 +751,18 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         _initialized = true;
         _canInteract = true;
 
+        // Set up the initial management key
         bytes32 _key = keccak256(abi.encode(initialManagementKey));
         _keys[_key].key = _key;
-        _keys[_key].purposes = [1];
-        _keys[_key].keyType = 1;
+        _keys[_key].purposes = [1]; // MANAGEMENT purpose
+        _keys[_key].keyType = 1; // ECDSA key type
         _keysByPurpose[1].push(_key);
+
+        // Initialize index mappings for O(1) lookups
+        // Store 1-based indices (0 means not found, 1+ means found at index-1)
+        _purposeIndexInKey[_key][1] = 1; // First purpose at index 0 + 1
+        _keyIndexInPurpose[1][_key] = 1; // First key at index 0 + 1
+
         emit KeyAdded(_key, 1, 1);
     }
 

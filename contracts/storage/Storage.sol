@@ -30,9 +30,18 @@ contract Storage is Structs {
     // status on potential interactions with the contract
     bool internal _canInteract = false;
 
+    // Index mappings for efficient key management (O(1) lookups)
+    // Maps key -> purpose -> index in key.purposes array
+    // Value 0 means not found, value 1+ means found at index (value-1)
+    mapping(bytes32 => mapping(uint256 => uint256)) internal _purposeIndexInKey;
+
+    // Maps purpose -> key -> index in _keysByPurpose array
+    // Value 0 means not found, value 1+ means found at index (value-1)
+    mapping(uint256 => mapping(bytes32 => uint256)) internal _keyIndexInPurpose;
+
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
      * variables without shifting down storage in the inheritance chain.
      */
-    uint256[49] private __gap;
+    uint256[47] private __gap;
 }
