@@ -476,6 +476,7 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
      * @notice Implementation of the addClaim function from the ERC-735 standard
      *  Require that the msg.sender has claim signer key.
      *
+     * @dev This function uses O(1) index mappings for efficient claim management.
      * @param _topic The type of claim
      * @param _scheme The scheme with which this claim SHOULD be verified or how it should be processed.
      * @param _issuer The issuers identity contract address, or the address used to sign the above signature.
@@ -504,6 +505,7 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         onlyClaimKey
         returns (bytes32 claimRequestId)
     {
+        // 1. Validate claim if issuer is not self
         if (_issuer != address(this)) {
             require(
                 IClaimIssuer(_issuer).isClaimValid(
@@ -517,15 +519,22 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         }
 
         bytes32 claimId = keccak256(abi.encode(_issuer, _topic));
-        _claims[claimId].topic = _topic;
-        _claims[claimId].scheme = _scheme;
-        _claims[claimId].signature = _signature;
-        _claims[claimId].data = _data;
-        _claims[claimId].uri = _uri;
+        Claim storage c = _claims[claimId];
 
-        if (_claims[claimId].issuer != _issuer) {
+        // 2. New claim or update existing
+        bool isNew = !_claimExists[claimId];
+        c.topic = _topic;
+        c.scheme = _scheme;
+        c.signature = _signature;
+        c.data = _data;
+        c.uri = _uri;
+
+        if (isNew) {
+            // Track claim for topic
             _claimsByTopic[_topic].push(claimId);
-            _claims[claimId].issuer = _issuer;
+            _claimIndexInTopic[_topic][claimId] = _claimsByTopic[_topic].length; // index+1
+            _claimExists[claimId] = true;
+            c.issuer = _issuer;
 
             emit ClaimAdded(
                 claimId,
@@ -556,6 +565,8 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
      * Require that the msg.sender has management key.
      * Can only be removed by the claim issuer, or the claim holder itself.
      *
+     * @dev This function uses O(1) index mappings and efficient swap-and-pop technique
+     * to maintain array consistency without gaps, ensuring optimal gas usage.
      * @param _claimId The identity of the claim i.e. keccak256(abi.encode(_issuer, _topic))
      *
      * @return success Returns TRUE when the claim was removed.
@@ -564,34 +575,53 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     function removeClaim(
         bytes32 _claimId
     ) public override delegatedOnly onlyClaimKey returns (bool success) {
-        uint256 _topic = _claims[_claimId].topic;
-        require(_topic != 0, Errors.ClaimNotRegistered(_claimId));
+        // 1. Validate claim exists and get topic
+        Claim storage c = _claims[_claimId];
+        uint256 topic = c.topic;
+        require(topic != 0, Errors.ClaimNotRegistered(_claimId));
 
-        uint256 claimIndex = 0;
-        uint256 arrayLength = _claimsByTopic[_topic].length;
-        while (_claimsByTopic[_topic][claimIndex] != _claimId) {
-            claimIndex++;
+        // 2. Get claim index using O(1) lookup
+        uint256 claimIdxPlusOne = _claimIndexInTopic[topic][_claimId];
+        require(claimIdxPlusOne > 0, "Claim index missing");
+        uint256 claimIdx = claimIdxPlusOne - 1; // Convert to 0-based index
 
-            if (claimIndex >= arrayLength) {
-                break;
-            }
+        // ===========================================
+        // STEP 1: REMOVE CLAIM FROM TOPIC INDEX
+        // ===========================================
+
+        uint256 lastClaimIdx = _claimsByTopic[topic].length - 1;
+
+        if (claimIdx != lastClaimIdx) {
+            // Swap-and-pop: Move last element to current position to maintain array consistency
+            bytes32 lastClaimId = _claimsByTopic[topic][lastClaimIdx];
+            _claimsByTopic[topic][claimIdx] = lastClaimId;
+
+            // Update index mapping for the swapped claim
+            _claimIndexInTopic[topic][lastClaimId] = claimIdx + 1;
         }
 
-        _claimsByTopic[_topic][claimIndex] = _claimsByTopic[_topic][
-            arrayLength - 1
-        ];
-        _claimsByTopic[_topic].pop();
+        // Remove the last element (either the target or the swapped element)
+        _claimsByTopic[topic].pop();
+
+        // Clean up the index mapping for the removed claim
+        delete _claimIndexInTopic[topic][_claimId];
+        delete _claimExists[_claimId];
+
+        // ===========================================
+        // STEP 2: EMIT EVENT AND CLEAN UP CLAIM
+        // ===========================================
 
         emit ClaimRemoved(
             _claimId,
-            _topic,
-            _claims[_claimId].scheme,
-            _claims[_claimId].issuer,
-            _claims[_claimId].signature,
-            _claims[_claimId].data,
-            _claims[_claimId].uri
+            topic,
+            c.scheme,
+            c.issuer,
+            c.signature,
+            c.data,
+            c.uri
         );
 
+        // Clean up the claim data
         delete _claims[_claimId];
 
         return true;
@@ -631,14 +661,8 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
             string memory uri
         )
     {
-        return (
-            _claims[_claimId].topic,
-            _claims[_claimId].scheme,
-            _claims[_claimId].issuer,
-            _claims[_claimId].signature,
-            _claims[_claimId].data,
-            _claims[_claimId].uri
-        );
+        Claim storage c = _claims[_claimId];
+        return (c.topic, c.scheme, c.issuer, c.signature, c.data, c.uri);
     }
 
     /**

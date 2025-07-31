@@ -39,9 +39,17 @@ contract Storage is Structs {
     // Value 0 means not found, value 1+ means found at index (value-1)
     mapping(uint256 => mapping(bytes32 => uint256)) internal _keyIndexInPurpose;
 
+    // Index mappings for efficient claim management (O(1) lookups)
+    // Maps topic -> claimId -> index in _claimsByTopic array
+    // Value 0 means not found, value 1+ means found at index (value-1)
+    mapping(uint256 => mapping(bytes32 => uint256)) internal _claimIndexInTopic;
+
+    // Maps claimId -> true if claim exists (used for validation/fallback)
+    mapping(bytes32 => bool) internal _claimExists;
+
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
      * variables without shifting down storage in the inheritance chain.
      */
-    uint256[47] private __gap;
+    uint256[45] private __gap;
 }
