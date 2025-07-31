@@ -10,9 +10,9 @@ contract Storage is Structs {
     mapping(bytes32 => Key) internal _keys;
 
     // keys for a given purpose
-    // purpose 1 = MANAGEMENT
-    // purpose 2 = ACTION
-    // purpose 3 = CLAIM
+    // purpose KeyPurposes.MANAGEMENT = MANAGEMENT
+    // purpose KeyPurposes.ACTION = ACTION
+    // purpose KeyPurposes.CLAIM_SIGNER = CLAIM
     mapping(uint256 => bytes32[]) internal _keysByPurpose;
 
     // execution data

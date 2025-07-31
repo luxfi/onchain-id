@@ -9,6 +9,7 @@ import { Version } from "./version/Version.sol";
 import { Storage } from "./storage/Storage.sol";
 import { Errors } from "./libraries/Errors.sol";
 import { KeyPurposes } from "./libraries/KeyPurposes.sol";
+import { KeyTypes } from "./libraries/KeyTypes.sol";
 
 import { MulticallUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -157,7 +158,8 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     /**
      * @dev See {IERC734-getKeysByPurpose}.
      * @notice gets all the keys with a specific purpose from an identity
-     * @param _purpose a uint256[] Array of the key types, like 1 = MANAGEMENT, 2 = ACTION, 3 = CLAIM, 4 = ENCRYPTION
+     * @param _purpose a uint256[] Array of the key types, like KeyPurposes.MANAGEMENT = MANAGEMENT,
+     * KeyPurposes.ACTION = ACTION, KeyPurposes.CLAIM_SIGNER = CLAIM, KeyPurposes.ENCRYPTION = ENCRYPTION
      * @return keys Returns an array of public key bytes32 hold by this identity and having the specified purpose
      */
     function getKeysByPurpose(
@@ -208,17 +210,20 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     /**
      * @notice implementation of the addKey function of the ERC-734 standard
      * Adds a _key to the identity. The _purpose specifies the purpose of key. Initially we propose four purposes:
-     * 1: MANAGEMENT keys, which can manage the identity
-     * 2: ACTION keys, which perform actions in this identities name (signing, logins, transactions, etc.)
-     * 3: CLAIM signer keys, used to sign claims on other identities which need to be revokable.
-     * 4: ENCRYPTION keys, used to encrypt data e.g. hold in claims.
-     * MUST only be done by keys of purpose 1, or the identity itself.
+     * KeyPurposes.MANAGEMENT: MANAGEMENT keys, which can manage the identity
+     * KeyPurposes.ACTION: ACTION keys, which perform actions in this identities name (signing, logins,
+     * transactions, etc.)
+     * KeyPurposes.CLAIM_SIGNER: CLAIM signer keys, used to sign claims on other identities which need to be revokable.
+     * KeyPurposes.ENCRYPTION: ENCRYPTION keys, used to encrypt data e.g. hold in claims.
+     * MUST only be done by keys of purpose KeyPurposes.MANAGEMENT, or the identity itself.
      * If its the identity itself, the approval process will determine its approval.
      *
      * @dev This function uses O(1) index mappings for efficient lookups and updates.
      * @param _key keccak256 representation of an ethereum address
-     * @param _type type of key used, which would be a uint256 for different key types. e.g. 1 = ECDSA, 2 = RSA, etc.
-     * @param _purpose a uint256 specifying the key type, like 1 = MANAGEMENT, 2 = ACTION, 3 = CLAIM, 4 = ENCRYPTION
+     * @param _type type of key used, which would be a uint256 for different key types. e.g. KeyTypes.ECDSA = ECDSA,
+     * KeyTypes.RSA = RSA, etc.
+     * @param _purpose a uint256 specifying the key type, like KeyPurposes.MANAGEMENT = MANAGEMENT,
+     * KeyPurposes.ACTION = ACTION, KeyPurposes.CLAIM_SIGNER = CLAIM, KeyPurposes.ENCRYPTION = ENCRYPTION
      * @return success Returns TRUE if the addition was successful and FALSE if not
      */
     function addKey(
@@ -777,16 +782,16 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         // Set up the initial management key
         bytes32 _key = keccak256(abi.encode(initialManagementKey));
         _keys[_key].key = _key;
-        _keys[_key].purposes = [1]; // MANAGEMENT purpose
-        _keys[_key].keyType = 1; // ECDSA key type
-        _keysByPurpose[1].push(_key);
+        _keys[_key].purposes = [KeyPurposes.MANAGEMENT]; // MANAGEMENT purpose
+        _keys[_key].keyType = KeyTypes.ECDSA; // ECDSA key type
+        _keysByPurpose[KeyPurposes.MANAGEMENT].push(_key);
 
         // Initialize index mappings for O(1) lookups
         // Store 1-based indices (0 means not found, 1+ means found at index-1)
-        _purposeIndexInKey[_key][1] = 1; // First purpose at index 0 + 1
-        _keyIndexInPurpose[1][_key] = 1; // First key at index 0 + 1
+        _purposeIndexInKey[_key][KeyPurposes.MANAGEMENT] = 1; // First purpose at index 0 + 1
+        _keyIndexInPurpose[KeyPurposes.MANAGEMENT][_key] = 1; // First key at index 0 + 1
 
-        emit KeyAdded(_key, 1, 1);
+        emit KeyAdded(_key, KeyPurposes.MANAGEMENT, KeyTypes.ECDSA);
     }
 
     /**
