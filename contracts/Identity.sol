@@ -116,18 +116,11 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @dev See {IERC165-supportsInterface}.
-     * @notice Returns true if this contract implements the interface defined by interfaceId
-     * @param interfaceId The interface identifier, as specified in ERC-165
-     * @return true if the interface is supported, false otherwise
+     * @notice Gets the current execution nonce
+     * @return The current execution nonce
      */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) external pure returns (bool) {
-        return (interfaceId == type(IERC165).interfaceId ||
-            interfaceId == type(IERC734).interfaceId ||
-            interfaceId == type(IERC735).interfaceId ||
-            interfaceId == type(IIdentity).interfaceId);
+    function getCurrentNonce() external view returns (uint256) {
+        return _executionNonce;
     }
 
     /**
@@ -187,14 +180,6 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @notice Gets the current execution nonce
-     * @return The current execution nonce
-     */
-    function getCurrentNonce() external view returns (uint256) {
-        return _executionNonce;
-    }
-
-    /**
      * @notice Gets the execution data for a specific execution ID
      * @param _executionId The execution ID to get data for
      * @return execution including (to, value, data, approved, executed)
@@ -203,6 +188,21 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         uint256 _executionId
     ) external view returns (Execution memory execution) {
         return _executions[_executionId];
+    }
+
+    /**
+     * @dev See {IERC165-supportsInterface}.
+     * @notice Returns true if this contract implements the interface defined by interfaceId
+     * @param interfaceId The interface identifier, as specified in ERC-165
+     * @return true if the interface is supported, false otherwise
+     */
+    function supportsInterface(
+        bytes4 interfaceId
+    ) external pure returns (bool) {
+        return (interfaceId == type(IERC165).interfaceId ||
+            interfaceId == type(IERC734).interfaceId ||
+            interfaceId == type(IERC735).interfaceId ||
+            interfaceId == type(IIdentity).interfaceId);
     }
 
     /**
@@ -253,138 +253,6 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     *  @dev See {IERC734-approve}.
-     *  @notice Approves an execution.
-     *  If the sender is an ACTION key and the destination address is not the identity contract itself, then the
-     *  approval is authorized and the operation would be performed.
-     *  If the destination address is the identity itself, then the execution would be authorized and performed only
-     *  if the sender is a MANAGEMENT key.
-     */
-    function approve(
-        uint256 _id,
-        bool _shouldApprove
-    ) public override delegatedOnly returns (bool success) {
-        require(_id < _executionNonce, Errors.InvalidRequestId());
-        require(!_executions[_id].executed, Errors.RequestAlreadyExecuted());
-
-        // Validate that the sender has the appropriate key purpose
-        if (_executions[_id].to == address(this)) {
-            require(
-                keyHasPurpose(
-                    keccak256(abi.encode(msg.sender)),
-                    KeyPurposes.MANAGEMENT
-                ),
-                Errors.SenderDoesNotHaveManagementKey()
-            );
-        } else {
-            require(
-                keyHasPurpose(
-                    keccak256(abi.encode(msg.sender)),
-                    KeyPurposes.ACTION
-                ),
-                Errors.SenderDoesNotHaveActionKey()
-            );
-        }
-
-        return _approve(_id, _shouldApprove);
-    }
-
-    /**
-     * @dev Internal method to handle the actual approval logic
-     * @param _id The execution ID to approve
-     * @param _shouldApprove Whether to approve or reject the execution
-     * @return success Whether the execution was successful
-     */
-    function _approve(
-        uint256 _id,
-        bool _shouldApprove
-    ) internal returns (bool success) {
-        emit Approved(_id, _shouldApprove);
-
-        if (_shouldApprove) {
-            _executions[_id].approved = true;
-
-            // solhint-disable-next-line avoid-low-level-calls
-            (success, ) = _executions[_id].to.call{
-                value: (_executions[_id].value)
-            }(_executions[_id].data);
-
-            if (success) {
-                _executions[_id].executed = true;
-
-                emit Executed(
-                    _id,
-                    _executions[_id].to,
-                    _executions[_id].value,
-                    _executions[_id].data
-                );
-
-                return true;
-            } else {
-                emit ExecutionFailed(
-                    _id,
-                    _executions[_id].to,
-                    _executions[_id].value,
-                    _executions[_id].data
-                );
-
-                return false;
-            }
-        } else {
-            _executions[_id].approved = false;
-        }
-        return false;
-    }
-
-    /**
-     * @dev Internal method to check if an execution can be auto-approved based on key purposes
-     * @param _to The target address of the execution
-     * @param _data The execution data
-     * @return canAutoApprove Whether the execution can be auto-approved
-     */
-    function _canAutoApproveExecution(
-        address _to,
-        bytes memory _data
-    ) internal view returns (bool canAutoApprove) {
-        // MANAGEMENT keys can auto-approve any execution
-        if (
-            keyHasPurpose(
-                keccak256(abi.encode(msg.sender)),
-                KeyPurposes.MANAGEMENT
-            )
-        ) {
-            return true;
-        }
-
-        // For identity contract calls, check if it's an addClaim call with CLAIM_SIGNER key
-        if (_to == address(this) && _data.length >= 4) {
-            bytes4 selector;
-            assembly {
-                selector := mload(add(_data, 32))
-            }
-            if (
-                selector == this.addClaim.selector &&
-                keyHasPurpose(
-                    keccak256(abi.encode(msg.sender)),
-                    KeyPurposes.CLAIM_SIGNER
-                )
-            ) {
-                return true;
-            }
-        }
-
-        // ACTION keys can auto-approve external calls
-        if (
-            _to != address(this) &&
-            keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)
-        ) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
      * @dev See {IERC734-removeKey}.
      * @notice Remove the purpose from a key.
      *
@@ -412,55 +280,15 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         );
         uint256 purposeIdx = purposeIdxPlusOne - 1; // Convert to 0-based index
 
-        // ===========================================
-        // STEP 1: REMOVE PURPOSE FROM KEY STRUCT
-        // ===========================================
+        // Remove purpose from key struct
+        _removePurposeFromKey(_key, _purpose, purposeIdx);
 
-        uint256 lastPurposeIdx = k.purposes.length - 1;
-
-        if (purposeIdx != lastPurposeIdx) {
-            // Swap-and-pop: Move last element to current position to maintain array consistency
-            uint256 lastPurpose = k.purposes[lastPurposeIdx];
-            k.purposes[purposeIdx] = lastPurpose;
-
-            // Update index mapping for the swapped purpose
-            _purposeIndexInKey[_key][lastPurpose] = purposeIdx + 1;
-        }
-
-        // Remove the last element (either the target or the swapped element)
-        k.purposes.pop();
-
-        // Clean up the index mapping for the removed purpose
-        delete _purposeIndexInKey[_key][_purpose];
-
-        // ===========================================
-        // STEP 2: REMOVE KEY FROM PURPOSE INDEX
-        // ===========================================
-
+        // Remove key from purpose index
         uint256 keyIdxPlusOne = _keyIndexInPurpose[_purpose][_key];
         uint256 keyIdx = keyIdxPlusOne - 1; // Convert to 0-based index
+        _removeKeyFromPurposeIndex(_key, _purpose, keyIdx);
 
-        uint256 lastKeyIdx = _keysByPurpose[_purpose].length - 1;
-
-        if (keyIdx != lastKeyIdx) {
-            // Swap-and-pop: Move last key to current position
-            bytes32 lastKey = _keysByPurpose[_purpose][lastKeyIdx];
-            _keysByPurpose[_purpose][keyIdx] = lastKey;
-
-            // Update index mapping for the swapped key
-            _keyIndexInPurpose[_purpose][lastKey] = keyIdx + 1;
-        }
-
-        // Remove the last key (either the target or the swapped key)
-        _keysByPurpose[_purpose].pop();
-
-        // Clean up the index mapping for this key in the purpose group
-        delete _keyIndexInPurpose[_purpose][_key];
-
-        // ===========================================
-        // STEP 3: EMIT EVENT AND CLEANUP
-        // ===========================================
-
+        // Emit event and cleanup
         emit KeyRemoved(_key, _purpose, k.keyType);
 
         // If key has no more purposes, delete the entire key struct to save gas
@@ -507,15 +335,7 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     {
         // 1. Validate claim if issuer is not self
         if (_issuer != address(this)) {
-            require(
-                IClaimIssuer(_issuer).isClaimValid(
-                    IIdentity(address(this)),
-                    _topic,
-                    _signature,
-                    _data
-                ),
-                Errors.InvalidClaim()
-            );
+            _validateExternalClaim(_issuer, _topic, _signature, _data);
         }
 
         bytes32 claimId = keccak256(abi.encode(_issuer, _topic));
@@ -530,32 +350,19 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         c.uri = _uri;
 
         if (isNew) {
-            // Track claim for topic
-            _claimsByTopic[_topic].push(claimId);
-            _claimIndexInTopic[_topic][claimId] = _claimsByTopic[_topic].length; // index+1
-            _claimExists[claimId] = true;
-            c.issuer = _issuer;
-
-            emit ClaimAdded(
-                claimId,
-                _topic,
-                _scheme,
-                _issuer,
-                _signature,
-                _data,
-                _uri
-            );
-        } else {
-            emit ClaimChanged(
-                claimId,
-                _topic,
-                _scheme,
-                _issuer,
-                _signature,
-                _data,
-                _uri
-            );
+            _setupNewClaim(claimId, _topic, _issuer);
         }
+
+        _emitClaimEvent(
+            claimId,
+            _topic,
+            _scheme,
+            _issuer,
+            _signature,
+            _data,
+            _uri,
+            isNew
+        );
         return claimId;
     }
 
@@ -585,32 +392,10 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         require(claimIdxPlusOne > 0, "Claim index missing");
         uint256 claimIdx = claimIdxPlusOne - 1; // Convert to 0-based index
 
-        // ===========================================
-        // STEP 1: REMOVE CLAIM FROM TOPIC INDEX
-        // ===========================================
+        // Remove claim from topic index
+        _removeClaimFromTopicIndex(_claimId, topic, claimIdx);
 
-        uint256 lastClaimIdx = _claimsByTopic[topic].length - 1;
-
-        if (claimIdx != lastClaimIdx) {
-            // Swap-and-pop: Move last element to current position to maintain array consistency
-            bytes32 lastClaimId = _claimsByTopic[topic][lastClaimIdx];
-            _claimsByTopic[topic][claimIdx] = lastClaimId;
-
-            // Update index mapping for the swapped claim
-            _claimIndexInTopic[topic][lastClaimId] = claimIdx + 1;
-        }
-
-        // Remove the last element (either the target or the swapped element)
-        _claimsByTopic[topic].pop();
-
-        // Clean up the index mapping for the removed claim
-        delete _claimIndexInTopic[topic][_claimId];
-        delete _claimExists[_claimId];
-
-        // ===========================================
-        // STEP 2: EMIT EVENT AND CLEAN UP CLAIM
-        // ===========================================
-
+        // Emit event and clean up claim
         emit ClaimRemoved(
             _claimId,
             topic,
@@ -625,6 +410,43 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         delete _claims[_claimId];
 
         return true;
+    }
+
+    /**
+     *  @dev See {IERC734-approve}.
+     *  @notice Approves an execution.
+     *  If the sender is an ACTION key and the destination address is not the identity contract itself, then the
+     *  approval is authorized and the operation would be performed.
+     *  If the destination address is the identity itself, then the execution would be authorized and performed only
+     *  if the sender is a MANAGEMENT key.
+     */
+    function approve(
+        uint256 _id,
+        bool _shouldApprove
+    ) public override delegatedOnly returns (bool success) {
+        require(_id < _executionNonce, Errors.InvalidRequestId());
+        require(!_executions[_id].executed, Errors.RequestAlreadyExecuted());
+
+        // Validate that the sender has the appropriate key purpose
+        if (_executions[_id].to == address(this)) {
+            require(
+                keyHasPurpose(
+                    keccak256(abi.encode(msg.sender)),
+                    KeyPurposes.MANAGEMENT
+                ),
+                Errors.SenderDoesNotHaveManagementKey()
+            );
+        } else {
+            require(
+                keyHasPurpose(
+                    keccak256(abi.encode(msg.sender)),
+                    KeyPurposes.ACTION
+                ),
+                Errors.SenderDoesNotHaveActionKey()
+            );
+        }
+
+        return _approve(_id, _shouldApprove);
     }
 
     /**
@@ -760,6 +582,183 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
+     * @dev Internal method to handle the actual approval logic
+     * @param _id The execution ID to approve
+     * @param _shouldApprove Whether to approve or reject the execution
+     * @return success Whether the execution was successful
+     */
+    function _approve(
+        uint256 _id,
+        bool _shouldApprove
+    ) internal returns (bool success) {
+        emit Approved(_id, _shouldApprove);
+
+        if (_shouldApprove) {
+            _executions[_id].approved = true;
+
+            // solhint-disable-next-line avoid-low-level-calls
+            (success, ) = _executions[_id].to.call{
+                value: (_executions[_id].value)
+            }(_executions[_id].data);
+
+            if (success) {
+                _executions[_id].executed = true;
+
+                emit Executed(
+                    _id,
+                    _executions[_id].to,
+                    _executions[_id].value,
+                    _executions[_id].data
+                );
+
+                return true;
+            } else {
+                emit ExecutionFailed(
+                    _id,
+                    _executions[_id].to,
+                    _executions[_id].value,
+                    _executions[_id].data
+                );
+
+                return false;
+            }
+        } else {
+            _executions[_id].approved = false;
+        }
+        return false;
+    }
+
+    /**
+     * @dev Internal helper to remove purpose from key struct using swap-and-pop
+     */
+    function _removePurposeFromKey(
+        bytes32 _key,
+        uint256 _purpose,
+        uint256 _purposeIdx
+    ) internal {
+        Key storage k = _keys[_key];
+        uint256 lastPurposeIdx = k.purposes.length - 1;
+
+        if (_purposeIdx != lastPurposeIdx) {
+            // Swap-and-pop: Move last element to current position to maintain array consistency
+            uint256 lastPurpose = k.purposes[lastPurposeIdx];
+            k.purposes[_purposeIdx] = lastPurpose;
+
+            // Update index mapping for the swapped purpose
+            _purposeIndexInKey[_key][lastPurpose] = _purposeIdx + 1;
+        }
+
+        // Remove the last element (either the target or the swapped element)
+        k.purposes.pop();
+
+        // Clean up the index mapping for the removed purpose
+        delete _purposeIndexInKey[_key][_purpose];
+    }
+
+    /**
+     * @dev Internal helper to remove claim from topic index using swap-and-pop
+     */
+    function _removeClaimFromTopicIndex(
+        bytes32 _claimId,
+        uint256 _topic,
+        uint256 _claimIdx
+    ) internal {
+        uint256 lastClaimIdx = _claimsByTopic[_topic].length - 1;
+
+        if (_claimIdx != lastClaimIdx) {
+            // Swap-and-pop: Move last element to current position to maintain array consistency
+            bytes32 lastClaimId = _claimsByTopic[_topic][lastClaimIdx];
+            _claimsByTopic[_topic][_claimIdx] = lastClaimId;
+
+            // Update index mapping for the swapped claim
+            _claimIndexInTopic[_topic][lastClaimId] = _claimIdx + 1;
+        }
+
+        // Remove the last element (either the target or the swapped element)
+        _claimsByTopic[_topic].pop();
+
+        // Clean up the index mapping for the removed claim
+        delete _claimIndexInTopic[_topic][_claimId];
+        delete _claimExists[_claimId];
+    }
+
+    /**
+     * @dev Internal helper to remove key from purpose index using swap-and-pop
+     */
+    function _removeKeyFromPurposeIndex(
+        bytes32 _key,
+        uint256 _purpose,
+        uint256 _keyIdx
+    ) internal {
+        uint256 lastKeyIdx = _keysByPurpose[_purpose].length - 1;
+
+        if (_keyIdx != lastKeyIdx) {
+            // Swap-and-pop: Move last key to current position
+            bytes32 lastKey = _keysByPurpose[_purpose][lastKeyIdx];
+            _keysByPurpose[_purpose][_keyIdx] = lastKey;
+
+            // Update index mapping for the swapped key
+            _keyIndexInPurpose[_purpose][lastKey] = _keyIdx + 1;
+        }
+
+        // Remove the last key (either the target or the swapped key)
+        _keysByPurpose[_purpose].pop();
+
+        // Clean up the index mapping for this key in the purpose group
+        delete _keyIndexInPurpose[_purpose][_key];
+    }
+
+    /**
+     * @dev Internal helper to setup new claim tracking
+     */
+    function _setupNewClaim(
+        bytes32 _claimId,
+        uint256 _topic,
+        address _issuer
+    ) internal {
+        _claimsByTopic[_topic].push(_claimId);
+        _claimIndexInTopic[_topic][_claimId] = _claimsByTopic[_topic].length; // index+1
+        _claimExists[_claimId] = true;
+        _claims[_claimId].issuer = _issuer;
+    }
+
+    /**
+     * @dev Internal helper to emit claim events
+     */
+    function _emitClaimEvent(
+        bytes32 _claimId,
+        uint256 _topic,
+        uint256 _scheme,
+        address _issuer,
+        bytes memory _signature,
+        bytes memory _data,
+        string memory _uri,
+        bool _isNew
+    ) internal {
+        if (_isNew) {
+            emit ClaimAdded(
+                _claimId,
+                _topic,
+                _scheme,
+                _issuer,
+                _signature,
+                _data,
+                _uri
+            );
+        } else {
+            emit ClaimChanged(
+                _claimId,
+                _topic,
+                _scheme,
+                _issuer,
+                _signature,
+                _data,
+                _uri
+            );
+        }
+    }
+
+    /**
      * @notice Initializer internal function for the Identity contract.
      *
      * @dev This function sets up the initial management key and initializes all
@@ -788,6 +787,74 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         _keyIndexInPurpose[1][_key] = 1; // First key at index 0 + 1
 
         emit KeyAdded(_key, 1, 1);
+    }
+
+    /**
+     * @dev Internal method to check if an execution can be auto-approved based on key purposes
+     * @param _to The target address of the execution
+     * @param _data The execution data
+     * @return canAutoApprove Whether the execution can be auto-approved
+     */
+    function _canAutoApproveExecution(
+        address _to,
+        bytes memory _data
+    ) internal view returns (bool canAutoApprove) {
+        // MANAGEMENT keys can auto-approve any execution
+        if (
+            keyHasPurpose(
+                keccak256(abi.encode(msg.sender)),
+                KeyPurposes.MANAGEMENT
+            )
+        ) {
+            return true;
+        }
+
+        // For identity contract calls, check if it's an addClaim call with CLAIM_SIGNER key
+        if (_to == address(this) && _data.length >= 4) {
+            bytes4 selector;
+            assembly {
+                selector := mload(add(_data, 32))
+            }
+            if (
+                selector == this.addClaim.selector &&
+                keyHasPurpose(
+                    keccak256(abi.encode(msg.sender)),
+                    KeyPurposes.CLAIM_SIGNER
+                )
+            ) {
+                return true;
+            }
+        }
+
+        // ACTION keys can auto-approve external calls
+        if (
+            _to != address(this) &&
+            keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @dev Internal helper to validate claim with external issuer
+     */
+    function _validateExternalClaim(
+        address _issuer,
+        uint256 _topic,
+        bytes memory _signature,
+        bytes memory _data
+    ) internal view {
+        require(
+            IClaimIssuer(_issuer).isClaimValid(
+                IIdentity(address(this)),
+                _topic,
+                _signature,
+                _data
+            ),
+            Errors.InvalidClaim()
+        );
     }
 
     /**
