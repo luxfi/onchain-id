@@ -6,26 +6,115 @@ import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
 import { IERC734 } from "./interface/IERC734.sol";
 import { IERC735 } from "./interface/IERC735.sol";
 import { Version } from "./version/Version.sol";
-import { Storage } from "./storage/Storage.sol";
 import { Errors } from "./libraries/Errors.sol";
 import { KeyPurposes } from "./libraries/KeyPurposes.sol";
 import { KeyTypes } from "./libraries/KeyTypes.sol";
+import { Structs } from "./storage/Structs.sol";
 
 import { MulticallUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
+ * @title Identity
  * @dev Implementation of the `IERC734` "KeyHolder" and the `IERC735` "ClaimHolder" interfaces
  * into a common Identity Contract.
- * This implementation has a separate contract were it declares all storage,
- * allowing for it to be used as an upgradable logic contract.
+ *
+ * This implementation uses ERC-7201 storage slots for upgradeability, providing:
+ * - O(1) key and claim management operations
+ * - Efficient index mappings for fast lookups
+ * - Swap-and-pop techniques for gas-optimized array operations
+ * - Separation of key and claim storage for better organization
+ *
+ * The contract supports four key purposes:
+ * - MANAGEMENT: Keys that can manage the identity
+ * - ACTION: Keys that can perform actions on behalf of the identity
+ * - CLAIM_SIGNER: Keys that can sign claims for other identities
+ * - ENCRYPTION: Keys used for data encryption
+ *
+ * @custom:security This contract uses ERC-7201 storage slots to prevent storage collision attacks
+ * in upgradeable contracts.
  */
-contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
+
+contract Identity is IIdentity, Version, MulticallUpgradeable {
+    /**
+     * @dev ERC-7201 Storage Slots for upgradeable contract pattern
+     * These slots ensure no storage collision between different versions of the contract
+     */
+    bytes32 internal constant _KEY_STORAGE_SLOT =
+        keccak256("onchainid.identity.key.storage");
+    bytes32 internal constant _CLAIM_STORAGE_SLOT =
+        keccak256("onchainid.identity.claim.storage");
+
+    /**
+     * @dev Storage struct for key management and execution data
+     * Uses ERC-7201 storage slot pattern for upgradeability
+     */
+    struct KeyStorage {
+        /// @dev Nonce used by the execute/approve function to track execution requests
+        uint256 executionNonce;
+        /// @dev Mapping of key hash to Key struct as defined by IERC734
+        mapping(bytes32 => Structs.Key) keys;
+        /// @dev Mapping of purpose to array of key hashes for efficient purpose-based lookups
+        mapping(uint256 => bytes32[]) keysByPurpose;
+        /// @dev Mapping of execution ID to Execution struct for tracking execution requests
+        mapping(uint256 => Structs.Execution) executions;
+        /// @dev Flag indicating if the contract has been initialized
+        bool initialized;
+        /// @dev Flag indicating if the contract can be interacted with (prevents direct calls to implementation)
+        bool canInteract;
+        /// @dev O(1) index mapping: key -> purpose -> index in key.purposes array
+        /// @dev Value 0 means not found, value 1+ means found at index (value-1)
+        mapping(bytes32 => mapping(uint256 => uint256)) purposeIndexInKey;
+        /// @dev O(1) index mapping: purpose -> key -> index in keysByPurpose array
+        /// @dev Value 0 means not found, value 1+ means found at index (value-1)
+        mapping(uint256 => mapping(bytes32 => uint256)) keyIndexInPurpose;
+    }
+
+    /**
+     * @dev Storage struct for claim management data
+     * Uses ERC-7201 storage slot pattern for upgradeability
+     */
+    struct ClaimStorage {
+        /// @dev Mapping of claim ID to Claim struct as defined by IERC735
+        mapping(bytes32 => Structs.Claim) claims;
+        /// @dev Mapping of topic to array of claim IDs for efficient topic-based lookups
+        mapping(uint256 => bytes32[]) claimsByTopic;
+        /// @dev O(1) index mapping: topic -> claimId -> index in claimsByTopic array
+        /// @dev Value 0 means not found, value 1+ means found at index (value-1)
+        mapping(uint256 => mapping(bytes32 => uint256)) claimIndexInTopic;
+        /// @dev Mapping of claimId -> true if claim exists (used for validation/fallback)
+        mapping(bytes32 => bool) claimExists;
+    }
+
+    /**
+     * @dev Returns the key storage struct at the specified ERC-7201 slot
+     * @return s The KeyStorage struct pointer for the key management slot
+     */
+    function _getKeyStorage() internal pure returns (KeyStorage storage s) {
+        bytes32 slot = _KEY_STORAGE_SLOT;
+        assembly {
+            s.slot := slot
+        }
+    }
+
+    /**
+     * @dev Returns the claim storage struct at the specified ERC-7201 slot
+     * @return s The ClaimStorage struct pointer for the claim management slot
+     */
+    function _getClaimStorage() internal pure returns (ClaimStorage storage s) {
+        bytes32 slot = _CLAIM_STORAGE_SLOT;
+        assembly {
+            s.slot := slot
+        }
+    }
     /**
      * @notice Prevent any direct calls to the implementation contract (marked by _canInteract = false).
      */
     modifier delegatedOnly() {
-        require(_canInteract, Errors.InteractingWithLibraryContractForbidden());
+        require(
+            _getKeyStorage().canInteract,
+            Errors.InteractingWithLibraryContractForbidden()
+        );
         _;
     }
 
@@ -71,7 +160,7 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         if (!_isLibrary) {
             __Identity_init(initialManagementKey);
         } else {
-            _initialized = true;
+            _getKeyStorage().initialized = true;
         }
     }
 
@@ -88,23 +177,29 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     /**
      * @dev See {IERC734-execute}.
      * @notice Passes an execution instruction to the keymanager.
-     * If the sender is an ACTION key and the destination address is not the identity contract itself, then the
-     * execution is immediately approved and performed.
-     * If the destination address is the identity itself, then the execution would be performed immediately only if
-     * the sender is a MANAGEMENT key.
-     * Otherwise the execution request must be approved via the `approve` method.
-     * @return executionId to use in the approve function, to approve or reject this execution.
+     *
+     * Execution flow:
+     * 1. If the sender is an ACTION key and the destination is external, execution is auto-approved
+     * 2. If the sender is a MANAGEMENT key, execution is auto-approved for any destination
+     * 3. If the sender is a CLAIM_SIGNER key and the call is to addClaim, execution is auto-approved
+     * 4. Otherwise, the execution request must be approved via the `approve` method
+     *
+     * @param _to The destination address for the execution
+     * @param _value The amount of ETH to send with the execution
+     * @param _data The calldata for the execution
+     * @return executionId The ID to use in the approve function to approve or reject this execution
      */
     function execute(
         address _to,
         uint256 _value,
         bytes memory _data
     ) external payable override delegatedOnly returns (uint256 executionId) {
-        uint256 _executionId = _executionNonce;
-        _executions[_executionId].to = _to;
-        _executions[_executionId].value = _value;
-        _executions[_executionId].data = _data;
-        _executionNonce++;
+        KeyStorage storage ks = _getKeyStorage();
+        uint256 _executionId = ks.executionNonce;
+        ks.executions[_executionId].to = _to;
+        ks.executions[_executionId].value = _value;
+        ks.executions[_executionId].data = _data;
+        ks.executionNonce++;
 
         emit ExecutionRequested(_executionId, _to, _value, _data);
 
@@ -121,7 +216,7 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
      * @return The current execution nonce
      */
     function getCurrentNonce() external view returns (uint256) {
-        return _executionNonce;
+        return _getKeyStorage().executionNonce;
     }
 
     /**
@@ -140,7 +235,12 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         override
         returns (uint256[] memory purposes, uint256 keyType, bytes32 key)
     {
-        return (_keys[_key].purposes, _keys[_key].keyType, _keys[_key].key);
+        KeyStorage storage ks = _getKeyStorage();
+        return (
+            ks.keys[_key].purposes,
+            ks.keys[_key].keyType,
+            ks.keys[_key].key
+        );
     }
 
     /**
@@ -152,20 +252,19 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     function getKeyPurposes(
         bytes32 _key
     ) external view override returns (uint256[] memory _purposes) {
-        return (_keys[_key].purposes);
+        return (_getKeyStorage().keys[_key].purposes);
     }
 
     /**
      * @dev See {IERC734-getKeysByPurpose}.
      * @notice gets all the keys with a specific purpose from an identity
-     * @param _purpose a uint256[] Array of the key types, like KeyPurposes.MANAGEMENT = MANAGEMENT,
-     * KeyPurposes.ACTION = ACTION, KeyPurposes.CLAIM_SIGNER = CLAIM, KeyPurposes.ENCRYPTION = ENCRYPTION
+     * @param _purpose a uint256[] Array of the key types, like 1 = MANAGEMENT, 2 = ACTION, 3 = CLAIM, 4 = ENCRYPTION
      * @return keys Returns an array of public key bytes32 hold by this identity and having the specified purpose
      */
     function getKeysByPurpose(
         uint256 _purpose
     ) external view override returns (bytes32[] memory keys) {
-        return _keysByPurpose[_purpose];
+        return _getKeyStorage().keysByPurpose[_purpose];
     }
 
     /**
@@ -178,7 +277,7 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     function getClaimIdsByTopic(
         uint256 _topic
     ) external view override returns (bytes32[] memory claimIds) {
-        return _claimsByTopic[_topic];
+        return _getClaimStorage().claimsByTopic[_topic];
     }
 
     /**
@@ -188,8 +287,8 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
      */
     function getExecutionData(
         uint256 _executionId
-    ) external view returns (Execution memory execution) {
-        return _executions[_executionId];
+    ) external view returns (Structs.Execution memory execution) {
+        return _getKeyStorage().executions[_executionId];
     }
 
     /**
@@ -208,36 +307,40 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @notice implementation of the addKey function of the ERC-734 standard
-     * Adds a _key to the identity. The _purpose specifies the purpose of key. Initially we propose four purposes:
-     * KeyPurposes.MANAGEMENT: MANAGEMENT keys, which can manage the identity
-     * KeyPurposes.ACTION: ACTION keys, which perform actions in this identities name (signing, logins,
-     * transactions, etc.)
-     * KeyPurposes.CLAIM_SIGNER: CLAIM signer keys, used to sign claims on other identities which need to be revokable.
-     * KeyPurposes.ENCRYPTION: ENCRYPTION keys, used to encrypt data e.g. hold in claims.
-     * MUST only be done by keys of purpose KeyPurposes.MANAGEMENT, or the identity itself.
-     * If its the identity itself, the approval process will determine its approval.
+     * @dev See {IERC734-addKey}.
+     * @notice Adds a key to the identity with the specified purpose.
      *
-     * @dev This function uses O(1) index mappings for efficient lookups and updates.
-     * @param _key keccak256 representation of an ethereum address
-     * @param _type type of key used, which would be a uint256 for different key types. e.g. KeyTypes.ECDSA = ECDSA,
-     * KeyTypes.RSA = RSA, etc.
-     * @param _purpose a uint256 specifying the key type, like KeyPurposes.MANAGEMENT = MANAGEMENT,
-     * KeyPurposes.ACTION = ACTION, KeyPurposes.CLAIM_SIGNER = CLAIM, KeyPurposes.ENCRYPTION = ENCRYPTION
-     * @return success Returns TRUE if the addition was successful and FALSE if not
+     * This function uses O(1) index mappings for efficient lookups and updates, eliminating
+     * the need for linear searches through arrays.
+     *
+     * Key purposes:
+     * - MANAGEMENT: Keys that can manage the identity (add/remove keys, etc.)
+     * - ACTION: Keys that can perform actions on behalf of the identity
+     * - CLAIM_SIGNER: Keys that can sign claims for other identities
+     * - ENCRYPTION: Keys used for data encryption
+     *
+     * Access control: Only MANAGEMENT keys or the identity itself can add keys.
+     *
+     * @param _key The keccak256 hash of the ethereum address or public key
+     * @param _purpose The purpose of the key (MANAGEMENT, ACTION, CLAIM_SIGNER, ENCRYPTION)
+     * @param _type The type of key (ECDSA, RSA, etc.)
+     * @return success True if the key was successfully added
+     *
      */
     function addKey(
         bytes32 _key,
         uint256 _purpose,
         uint256 _type
     ) public override delegatedOnly onlyManager returns (bool success) {
+        KeyStorage storage ks = _getKeyStorage();
+
         // 1. Early validation: Reject if key already has this purpose (O(1) lookup)
         require(
-            _purposeIndexInKey[_key][_purpose] == 0,
+            ks.purposeIndexInKey[_key][_purpose] == 0,
             Errors.KeyAlreadyHasPurpose(_key, _purpose)
         );
 
-        Key storage k = _keys[_key];
+        Structs.Key storage k = ks.keys[_key];
 
         // 2. Initialize new key if it doesn't exist yet
         if (k.key == bytes32(0)) {
@@ -247,11 +350,13 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
 
         // 3. Add purpose to key.purposes array and update index mapping
         k.purposes.push(_purpose);
-        _purposeIndexInKey[_key][_purpose] = k.purposes.length; // Store 1-based index
+        ks.purposeIndexInKey[_key][_purpose] = k.purposes.length; // Store 1-based index
 
         // 4. Add key to _keysByPurpose array and update index mapping
-        _keysByPurpose[_purpose].push(_key);
-        _keyIndexInPurpose[_purpose][_key] = _keysByPurpose[_purpose].length; // Store 1-based index
+        ks.keysByPurpose[_purpose].push(_key);
+        ks.keyIndexInPurpose[_purpose][_key] = ks
+            .keysByPurpose[_purpose]
+            .length; // Store 1-based index
 
         emit KeyAdded(_key, _purpose, _type);
         return true;
@@ -259,26 +364,37 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
 
     /**
      * @dev See {IERC734-removeKey}.
-     * @notice Remove the purpose from a key.
+     * @notice Removes a purpose from a key.
      *
-     * @dev This function uses O(1) index mappings and efficient swap-and-pop technique
+     * This function uses O(1) index mappings and efficient swap-and-pop technique
      * to maintain array consistency without gaps, ensuring optimal gas usage.
+     *
+     * The swap-and-pop technique:
+     * 1. Moves the last element to the position of the element being removed
+     * 2. Updates the index mappings for the swapped element
+     * 3. Removes the last element (which is now the target element)
+     *
+     * Access control: Only MANAGEMENT keys or the identity itself can remove keys.
+     *
      * @param _key The key to remove the purpose from
      * @param _purpose The purpose to remove from the key
-     * @return success Returns TRUE if the removal was successful
+     * @return success True if the purpose was successfully removed
+     *
      */
     function removeKey(
         bytes32 _key,
         uint256 _purpose
     ) public override delegatedOnly onlyManager returns (bool success) {
+        KeyStorage storage ks = _getKeyStorage();
+
         // Fetch the key data for efficient access
-        Key storage k = _keys[_key];
+        Structs.Key storage k = ks.keys[_key];
 
         // 1. Validate key exists
         require(k.key == _key, Errors.KeyNotRegistered(_key));
 
         // 2. Validate key has the specified purpose (O(1) lookup)
-        uint256 purposeIdxPlusOne = _purposeIndexInKey[_key][_purpose];
+        uint256 purposeIdxPlusOne = ks.purposeIndexInKey[_key][_purpose];
         require(
             purposeIdxPlusOne > 0,
             Errors.KeyDoesNotHavePurpose(_key, _purpose)
@@ -289,7 +405,7 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         _removePurposeFromKey(_key, _purpose, purposeIdx);
 
         // Remove key from purpose index
-        uint256 keyIdxPlusOne = _keyIndexInPurpose[_purpose][_key];
+        uint256 keyIdxPlusOne = ks.keyIndexInPurpose[_purpose][_key];
         uint256 keyIdx = keyIdxPlusOne - 1; // Convert to 0-based index
         _removeKeyFromPurposeIndex(_key, _purpose, keyIdx);
 
@@ -298,7 +414,7 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
 
         // If key has no more purposes, delete the entire key struct to save gas
         if (k.purposes.length == 0) {
-            delete _keys[_key];
+            delete ks.keys[_key];
         }
 
         return true;
@@ -306,23 +422,26 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
 
     /**
      * @dev See {IERC735-addClaim}.
-     * @notice Implementation of the addClaim function from the ERC-735 standard
-     *  Require that the msg.sender has claim signer key.
+     * @notice Adds or updates a claim for this identity.
      *
-     * @dev This function uses O(1) index mappings for efficient claim management.
-     * @param _topic The type of claim
-     * @param _scheme The scheme with which this claim SHOULD be verified or how it should be processed.
-     * @param _issuer The issuers identity contract address, or the address used to sign the above signature.
-     * @param _signature Signature which is the proof that the claim issuer issued a claim of topic for this identity.
-     * it MUST be a signed message of the following structure:
-     * keccak256(abi.encode(address identityHolder_address, uint256 _ topic, bytes data))
-     * @param _data The hash of the claim data, sitting in another
-     * location, a bit-mask, call data, or actual data based on the claim scheme.
-     * @param _uri The location of the claim, this can be HTTP links, swarm hashes, IPFS hashes, and such.
+     * This function uses O(1) index mappings for efficient claim management, eliminating
+     * the need for linear searches through claim arrays.
      *
-     * @return claimRequestId Returns claimRequestId: COULD be
-     * send to the approve function, to approve or reject this claim.
-     * triggers ClaimAdded event.
+     * Claim validation:
+     * - If the issuer is not the identity itself, the claim must be validated by the issuer
+     * - Self-issued claims are automatically valid
+     * - The signature must follow the structure: keccak256(abi.encode(identityHolder_address, topic, data))
+     *
+     * Access control: Only CLAIM_SIGNER keys can add claims.
+     *
+     * @param _topic The type/category of the claim
+     * @param _scheme The verification scheme for the claim (ECDSA, RSA, etc.)
+     * @param _issuer The address of the claim issuer (can be the identity itself)
+     * @param _signature The cryptographic proof that the issuer authorized this claim
+     * @param _data The claim data or hash of the claim data
+     * @param _uri The location of additional claim data (HTTP, IPFS, etc.)
+     * @return claimRequestId The unique identifier for this claim
+     *
      */
     function addClaim(
         uint256 _topic,
@@ -343,11 +462,12 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
             _validateExternalClaim(_issuer, _topic, _signature, _data);
         }
 
+        ClaimStorage storage cs = _getClaimStorage();
         bytes32 claimId = keccak256(abi.encode(_issuer, _topic));
-        Claim storage c = _claims[claimId];
+        Structs.Claim storage c = cs.claims[claimId];
 
         // 2. New claim or update existing
-        bool isNew = !_claimExists[claimId];
+        bool isNew = !cs.claimExists[claimId];
         c.topic = _topic;
         c.scheme = _scheme;
         c.signature = _signature;
@@ -373,27 +493,34 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
 
     /**
      * @dev See {IERC735-removeClaim}.
-     * @notice Implementation of the removeClaim function from the ERC-735 standard
-     * Require that the msg.sender has management key.
-     * Can only be removed by the claim issuer, or the claim holder itself.
+     * @notice Removes a claim from this identity.
      *
-     * @dev This function uses O(1) index mappings and efficient swap-and-pop technique
+     * This function uses O(1) index mappings and efficient swap-and-pop technique
      * to maintain array consistency without gaps, ensuring optimal gas usage.
-     * @param _claimId The identity of the claim i.e. keccak256(abi.encode(_issuer, _topic))
      *
-     * @return success Returns TRUE when the claim was removed.
-     * triggers ClaimRemoved event
+     * The swap-and-pop technique:
+     * 1. Moves the last claim to the position of the claim being removed
+     * 2. Updates the index mappings for the swapped claim
+     * 3. Removes the last claim (which is now the target claim)
+     *
+     * Access control: Only CLAIM_SIGNER keys can remove claims.
+     *
+     * @param _claimId The unique identifier of the claim (keccak256(abi.encode(issuer, topic)))
+     * @return success True if the claim was successfully removed
+     *
      */
     function removeClaim(
         bytes32 _claimId
     ) public override delegatedOnly onlyClaimKey returns (bool success) {
+        ClaimStorage storage cs = _getClaimStorage();
+
         // 1. Validate claim exists and get topic
-        Claim storage c = _claims[_claimId];
+        Structs.Claim storage c = cs.claims[_claimId];
         uint256 topic = c.topic;
         require(topic != 0, Errors.ClaimNotRegistered(_claimId));
 
         // 2. Get claim index using O(1) lookup
-        uint256 claimIdxPlusOne = _claimIndexInTopic[topic][_claimId];
+        uint256 claimIdxPlusOne = cs.claimIndexInTopic[topic][_claimId];
         require(claimIdxPlusOne > 0, "Claim index missing");
         uint256 claimIdx = claimIdxPlusOne - 1; // Convert to 0-based index
 
@@ -412,7 +539,7 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         );
 
         // Clean up the claim data
-        delete _claims[_claimId];
+        delete cs.claims[_claimId];
 
         return true;
     }
@@ -429,11 +556,12 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         uint256 _id,
         bool _shouldApprove
     ) public override delegatedOnly returns (bool success) {
-        require(_id < _executionNonce, Errors.InvalidRequestId());
-        require(!_executions[_id].executed, Errors.RequestAlreadyExecuted());
+        KeyStorage storage ks = _getKeyStorage();
+        require(_id < ks.executionNonce, Errors.InvalidRequestId());
+        require(!ks.executions[_id].executed, Errors.RequestAlreadyExecuted());
 
         // Validate that the sender has the appropriate key purpose
-        if (_executions[_id].to == address(this)) {
+        if (ks.executions[_id].to == address(this)) {
             require(
                 keyHasPurpose(
                     keccak256(abi.encode(msg.sender)),
@@ -488,33 +616,45 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
             string memory uri
         )
     {
-        Claim storage c = _claims[_claimId];
-        return (c.topic, c.scheme, c.issuer, c.signature, c.data, c.uri);
+        ClaimStorage storage cs = _getClaimStorage();
+        return (
+            cs.claims[_claimId].topic,
+            cs.claims[_claimId].scheme,
+            cs.claims[_claimId].issuer,
+            cs.claims[_claimId].signature,
+            cs.claims[_claimId].data,
+            cs.claims[_claimId].uri
+        );
     }
 
     /**
      * @dev See {IERC734-keyHasPurpose}.
-     * @notice Returns true if the key has MANAGEMENT purpose or the specified purpose.
+     * @notice Checks if a key has a specific purpose or MANAGEMENT purpose.
      *
-     * @dev This function uses O(1) index mappings for efficient lookups instead of
+     * This function uses O(1) index mappings for efficient lookups instead of
      * linear search through the purposes array. MANAGEMENT keys have universal
-     * permissions, so any key with MANAGEMENT purpose will return true for any purpose.
-     * @param _key The key to check
+     * permissions according to the ERC-734 standard, so any key with MANAGEMENT
+     * purpose will return true for any purpose.
+     *
+     * @param _key The key to check (keccak256 hash of the address)
      * @param _purpose The purpose to check for
      * @return result True if the key has the specified purpose or MANAGEMENT purpose
+     *
      */
     function keyHasPurpose(
         bytes32 _key,
         uint256 _purpose
     ) public view override returns (bool result) {
+        KeyStorage storage ks = _getKeyStorage();
+
         // Early return if key doesn't exist
-        if (_keys[_key].key == 0) return false;
+        if (ks.keys[_key].key == 0) return false;
 
         // O(1) lookup: Check if key has the specific purpose OR MANAGEMENT purpose
         // MANAGEMENT keys have universal permissions in the ERC-734 standard
         return
-            _purposeIndexInKey[_key][_purpose] > 0 ||
-            _purposeIndexInKey[_key][KeyPurposes.MANAGEMENT] > 0;
+            ks.purposeIndexInKey[_key][_purpose] > 0 ||
+            ks.purposeIndexInKey[_key][KeyPurposes.MANAGEMENT] > 0;
     }
 
     /**
@@ -596,52 +736,61 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         uint256 _id,
         bool _shouldApprove
     ) internal returns (bool success) {
+        KeyStorage storage ks = _getKeyStorage();
         emit Approved(_id, _shouldApprove);
 
         if (_shouldApprove) {
-            _executions[_id].approved = true;
+            ks.executions[_id].approved = true;
 
             // solhint-disable-next-line avoid-low-level-calls
-            (success, ) = _executions[_id].to.call{
-                value: (_executions[_id].value)
-            }(_executions[_id].data);
+            (success, ) = ks.executions[_id].to.call{
+                value: (ks.executions[_id].value)
+            }(ks.executions[_id].data);
 
             if (success) {
-                _executions[_id].executed = true;
+                ks.executions[_id].executed = true;
 
                 emit Executed(
                     _id,
-                    _executions[_id].to,
-                    _executions[_id].value,
-                    _executions[_id].data
+                    ks.executions[_id].to,
+                    ks.executions[_id].value,
+                    ks.executions[_id].data
                 );
 
                 return true;
             } else {
                 emit ExecutionFailed(
                     _id,
-                    _executions[_id].to,
-                    _executions[_id].value,
-                    _executions[_id].data
+                    ks.executions[_id].to,
+                    ks.executions[_id].value,
+                    ks.executions[_id].data
                 );
 
                 return false;
             }
         } else {
-            _executions[_id].approved = false;
+            ks.executions[_id].approved = false;
         }
         return false;
     }
 
     /**
-     * @dev Internal helper to remove purpose from key struct using swap-and-pop
+     * @dev Internal helper to remove purpose from key struct using swap-and-pop technique.
+     *
+     * This function efficiently removes a purpose from a key's purposes array while
+     * maintaining array consistency and updating the index mappings.
+     *
+     * @param _key The key to remove the purpose from
+     * @param _purpose The purpose to remove
+     * @param _purposeIdx The 0-based index of the purpose in the key.purposes array
      */
     function _removePurposeFromKey(
         bytes32 _key,
         uint256 _purpose,
         uint256 _purposeIdx
     ) internal {
-        Key storage k = _keys[_key];
+        KeyStorage storage ks = _getKeyStorage();
+        Structs.Key storage k = ks.keys[_key];
         uint256 lastPurposeIdx = k.purposes.length - 1;
 
         if (_purposeIdx != lastPurposeIdx) {
@@ -650,85 +799,123 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
             k.purposes[_purposeIdx] = lastPurpose;
 
             // Update index mapping for the swapped purpose
-            _purposeIndexInKey[_key][lastPurpose] = _purposeIdx + 1;
+            ks.purposeIndexInKey[_key][lastPurpose] = _purposeIdx + 1;
         }
 
         // Remove the last element (either the target or the swapped element)
         k.purposes.pop();
 
         // Clean up the index mapping for the removed purpose
-        delete _purposeIndexInKey[_key][_purpose];
+        delete ks.purposeIndexInKey[_key][_purpose];
     }
 
     /**
-     * @dev Internal helper to remove claim from topic index using swap-and-pop
+     * @dev Internal helper to remove claim from topic index using swap-and-pop technique.
+     *
+     * This function efficiently removes a claim from a topic's claims array while
+     * maintaining array consistency and updating the index mappings.
+     *
+     * @param _claimId The claim ID to remove
+     * @param _topic The topic of the claim
+     * @param _claimIdx The 0-based index of the claim in the claimsByTopic array
      */
     function _removeClaimFromTopicIndex(
         bytes32 _claimId,
         uint256 _topic,
         uint256 _claimIdx
     ) internal {
-        uint256 lastClaimIdx = _claimsByTopic[_topic].length - 1;
+        ClaimStorage storage cs = _getClaimStorage();
+        uint256 lastClaimIdx = cs.claimsByTopic[_topic].length - 1;
 
         if (_claimIdx != lastClaimIdx) {
             // Swap-and-pop: Move last element to current position to maintain array consistency
-            bytes32 lastClaimId = _claimsByTopic[_topic][lastClaimIdx];
-            _claimsByTopic[_topic][_claimIdx] = lastClaimId;
+            bytes32 lastClaimId = cs.claimsByTopic[_topic][lastClaimIdx];
+            cs.claimsByTopic[_topic][_claimIdx] = lastClaimId;
 
             // Update index mapping for the swapped claim
-            _claimIndexInTopic[_topic][lastClaimId] = _claimIdx + 1;
+            cs.claimIndexInTopic[_topic][lastClaimId] = _claimIdx + 1;
         }
 
         // Remove the last element (either the target or the swapped element)
-        _claimsByTopic[_topic].pop();
+        cs.claimsByTopic[_topic].pop();
 
         // Clean up the index mapping for the removed claim
-        delete _claimIndexInTopic[_topic][_claimId];
-        delete _claimExists[_claimId];
+        delete cs.claimIndexInTopic[_topic][_claimId];
+        delete cs.claimExists[_claimId];
     }
 
     /**
-     * @dev Internal helper to remove key from purpose index using swap-and-pop
+     * @dev Internal helper to remove key from purpose index using swap-and-pop technique.
+     *
+     * This function efficiently removes a key from a purpose's keys array while
+     * maintaining array consistency and updating the index mappings.
+     *
+     * @param _key The key to remove from the purpose
+     * @param _purpose The purpose to remove the key from
+     * @param _keyIdx The 0-based index of the key in the keysByPurpose array
      */
     function _removeKeyFromPurposeIndex(
         bytes32 _key,
         uint256 _purpose,
         uint256 _keyIdx
     ) internal {
-        uint256 lastKeyIdx = _keysByPurpose[_purpose].length - 1;
+        KeyStorage storage ks = _getKeyStorage();
+        uint256 lastKeyIdx = ks.keysByPurpose[_purpose].length - 1;
 
         if (_keyIdx != lastKeyIdx) {
             // Swap-and-pop: Move last key to current position
-            bytes32 lastKey = _keysByPurpose[_purpose][lastKeyIdx];
-            _keysByPurpose[_purpose][_keyIdx] = lastKey;
+            bytes32 lastKey = ks.keysByPurpose[_purpose][lastKeyIdx];
+            ks.keysByPurpose[_purpose][_keyIdx] = lastKey;
 
             // Update index mapping for the swapped key
-            _keyIndexInPurpose[_purpose][lastKey] = _keyIdx + 1;
+            ks.keyIndexInPurpose[_purpose][lastKey] = _keyIdx + 1;
         }
 
         // Remove the last key (either the target or the swapped key)
-        _keysByPurpose[_purpose].pop();
+        ks.keysByPurpose[_purpose].pop();
 
         // Clean up the index mapping for this key in the purpose group
-        delete _keyIndexInPurpose[_purpose][_key];
+        delete ks.keyIndexInPurpose[_purpose][_key];
     }
 
     /**
-     * @dev Internal helper to setup new claim tracking
+     * @dev Internal helper to setup new claim tracking with index mappings.
+     *
+     * This function initializes the index mappings for a new claim to enable
+     * O(1) lookups and efficient claim management.
+     *
+     * @param _claimId The unique identifier of the claim
+     * @param _topic The topic of the claim
+     * @param _issuer The address of the claim issuer
      */
     function _setupNewClaim(
         bytes32 _claimId,
         uint256 _topic,
         address _issuer
     ) internal {
-        _claimsByTopic[_topic].push(_claimId);
-        _claimIndexInTopic[_topic][_claimId] = _claimsByTopic[_topic].length; // index+1
-        _claimExists[_claimId] = true;
-        _claims[_claimId].issuer = _issuer;
+        ClaimStorage storage cs = _getClaimStorage();
+        cs.claimsByTopic[_topic].push(_claimId);
+        cs.claimIndexInTopic[_topic][_claimId] = cs
+            .claimsByTopic[_topic]
+            .length; // index+1
+        cs.claimExists[_claimId] = true;
+        cs.claims[_claimId].issuer = _issuer;
     }
 
     /**
-     * @dev Internal helper to emit claim events
+     * @dev Internal helper to emit appropriate claim events based on whether the claim is new or updated.
+     *
+     * This function emits either ClaimAdded or ClaimChanged events depending on whether
+     * the claim is being added for the first time or updated.
+     *
+     * @param _claimId The unique identifier of the claim
+     * @param _topic The topic of the claim
+     * @param _scheme The verification scheme for the claim
+     * @param _issuer The address of the claim issuer
+     * @param _signature The cryptographic proof of the claim
+     * @param _data The claim data or hash
+     * @param _uri The location of additional claim data
+     * @param _isNew Whether this is a new claim (true) or an update (false)
      */
     function _emitClaimEvent(
         bytes32 _claimId,
@@ -762,42 +949,51 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
             );
         }
     }
-
     /**
      * @notice Initializer internal function for the Identity contract.
      *
-     * @dev This function sets up the initial management key and initializes all
+     *  * @dev This function sets up the initial management key and initializes all
      * storage mappings including the new index mappings for efficient key management.
      * @param initialManagementKey The ethereum address to be set as the management key of the ONCHAINID.
      */
     // solhint-disable-next-line func-name-mixedcase
     function __Identity_init(address initialManagementKey) internal {
+        KeyStorage storage ks = _getKeyStorage();
         require(
-            !_initialized || _isConstructor(),
+            !ks.initialized || _isConstructor(),
             Errors.InitialKeyAlreadySetup()
         );
-        _initialized = true;
-        _canInteract = true;
+        ks.initialized = true;
+        ks.canInteract = true;
 
         // Set up the initial management key
         bytes32 _key = keccak256(abi.encode(initialManagementKey));
-        _keys[_key].key = _key;
-        _keys[_key].purposes = [KeyPurposes.MANAGEMENT]; // MANAGEMENT purpose
-        _keys[_key].keyType = KeyTypes.ECDSA; // ECDSA key type
-        _keysByPurpose[KeyPurposes.MANAGEMENT].push(_key);
+        ks.keys[_key].key = _key;
+        ks.keys[_key].purposes = [KeyPurposes.MANAGEMENT]; // MANAGEMENT purpose
+        ks.keys[_key].keyType = KeyTypes.ECDSA; // ECDSA key type
+        ks.keysByPurpose[KeyPurposes.MANAGEMENT].push(_key);
 
         // Initialize index mappings for O(1) lookups
         // Store 1-based indices (0 means not found, 1+ means found at index-1)
-        _purposeIndexInKey[_key][KeyPurposes.MANAGEMENT] = 1; // First purpose at index 0 + 1
-        _keyIndexInPurpose[KeyPurposes.MANAGEMENT][_key] = 1; // First key at index 0 + 1
+        ks.purposeIndexInKey[_key][KeyPurposes.MANAGEMENT] = 1; // First purpose at index 0 + 1
+        ks.keyIndexInPurpose[KeyPurposes.MANAGEMENT][_key] = 1; // First key at index 0 + 1
 
         emit KeyAdded(_key, KeyPurposes.MANAGEMENT, KeyTypes.ECDSA);
     }
 
     /**
-     * @dev Internal method to check if an execution can be auto-approved based on key purposes
+     * @dev Internal method to check if an execution can be auto-approved based on key purposes.
+     *
+     * This function determines whether an execution request can be automatically approved
+     * without requiring manual approval through the approve function.
+     *
+     * Auto-approval conditions:
+     * 1. MANAGEMENT keys can auto-approve any execution
+     * 2. CLAIM_SIGNER keys can auto-approve addClaim calls to the identity itself
+     * 3. ACTION keys can auto-approve external calls (not to the identity itself)
+     *
      * @param _to The target address of the execution
-     * @param _data The execution data
+     * @param _data The execution data (calldata)
      * @return canAutoApprove Whether the execution can be auto-approved
      */
     function _canAutoApproveExecution(
@@ -843,7 +1039,16 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @dev Internal helper to validate claim with external issuer
+     * @dev Internal helper to validate claim with external issuer.
+     *
+     * This function validates that a claim issued by an external issuer is valid
+     * by calling the issuer's isClaimValid function.
+     *
+     * @param _issuer The address of the claim issuer
+     * @param _topic The topic of the claim
+     * @param _signature The cryptographic proof of the claim
+     * @param _data The claim data or hash
+     *
      */
     function _validateExternalClaim(
         address _issuer,
