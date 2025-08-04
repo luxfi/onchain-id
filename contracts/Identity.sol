@@ -39,15 +39,27 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
     /**
      * @dev ERC-7201 Storage Slots for upgradeable contract pattern
      * These slots ensure no storage collision between different versions of the contract
+     *
+     * Formula: keccak256(abi.encode(uint256(keccak256(bytes(id))) - 1)) & ~bytes32(uint256(0xff))
+     * where id is the namespace identifier
      */
     bytes32 internal constant _KEY_STORAGE_SLOT =
-        keccak256("onchainid.identity.key.storage");
+        keccak256(
+            abi.encode(
+                uint256(keccak256(bytes("onchainid.identity.key.storage"))) - 1
+            )
+        ) & ~bytes32(uint256(0xff));
     bytes32 internal constant _CLAIM_STORAGE_SLOT =
-        keccak256("onchainid.identity.claim.storage");
+        keccak256(
+            abi.encode(
+                uint256(keccak256(bytes("onchainid.identity.claim.storage"))) -
+                    1
+            )
+        ) & ~bytes32(uint256(0xff));
 
     /**
      * @dev Storage struct for key management and execution data
-     * Uses ERC-7201 storage slot pattern for upgradeability
+     * @custom:storage-location erc7201:onchainid.identity.key.storage
      */
     struct KeyStorage {
         /// @dev Nonce used by the execute/approve function to track execution requests
@@ -72,7 +84,7 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
 
     /**
      * @dev Storage struct for claim management data
-     * Uses ERC-7201 storage slot pattern for upgradeability
+     * @custom:storage-location erc7201:onchainid.identity.claim.storage
      */
     struct ClaimStorage {
         /// @dev Mapping of claim ID to Claim struct as defined by IERC735
