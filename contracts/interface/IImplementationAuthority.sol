@@ -2,7 +2,6 @@
 pragma solidity ^0.8.27;
 
 interface IImplementationAuthority {
-
     // event emitted when the implementation contract is updated
     event UpdatedImplementation(address newAddress);
 
@@ -17,5 +16,5 @@ interface IImplementationAuthority {
     /**
      * @dev returns the address of the implementation
      */
-    function getImplementation() external view returns(address);
+    function getImplementation() external view returns (address);
 }

@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.27;
 
-import {IIdentityUtilities} from "./interface/IIdentityUtilities.sol";
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import {IIdentity} from "./interface/IIdentity.sol";
-import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
+import { IIdentityUtilities } from "./interface/IIdentityUtilities.sol";
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import { IIdentity } from "./interface/IIdentity.sol";
+import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
 
 /**
  * @title IdentityUtilities
  * @notice Contract for registering and retrieving structured topic schemas using encoded string arrays.
- * @dev Inherits from AccessControl and supports UUPS upgrades. Topics define field names and types using ABI-encoded `string[]` arrays.
+ * @dev Inherits from AccessControl and supports UUPS upgrades. Topics define field names and types
+ * using ABI-encoded `string[]` arrays.
  */
 contract IdentityUtilities is
     IIdentityUtilities,
@@ -23,8 +24,6 @@ contract IdentityUtilities is
 
     /// @dev Mapping from topic ID to TopicInfo struct
     mapping(uint256 => TopicInfo) private _topics;
-
-  
 
     /// @notice Disables initializers on the implementation contract
     constructor() {
@@ -192,24 +191,57 @@ contract IdentityUtilities is
         for (uint256 i = 0; i < topicIds.length; i++) {
             uint256 topicId = topicIds[i];
             TopicInfo memory topicInfo = _topics[topicId];
-            bytes32[] memory claimIds = IIdentity(identity).getClaimIdsByTopic(topicId);
+            bytes32[] memory claimIds = IIdentity(identity).getClaimIdsByTopic(
+                topicId
+            );
             for (uint256 j = 0; j < claimIds.length; j++) {
-                result[resultIndex] = _buildClaimInfo(identity, topicId, topicInfo, claimIds[j]);
+                result[resultIndex] = _buildClaimInfo(
+                    identity,
+                    topicId,
+                    topicInfo,
+                    claimIds[j]
+                );
                 resultIndex++;
             }
         }
     }
 
-    function _countTotalClaims(address identity, uint256[] calldata topicIds) internal view returns (uint256 total) {
+    /**
+     * @dev Required override for UUPS upgradability authorization
+     * @param newImplementation Address of the new implementation
+     */
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    function _countTotalClaims(
+        address identity,
+        uint256[] calldata topicIds
+    ) internal view returns (uint256 total) {
         for (uint256 i = 0; i < topicIds.length; i++) {
-            bytes32[] memory claimIds = IIdentity(identity).getClaimIdsByTopic(topicIds[i]);
+            bytes32[] memory claimIds = IIdentity(identity).getClaimIdsByTopic(
+                topicIds[i]
+            );
             total += claimIds.length;
         }
     }
 
-    function _isClaimValid(address identity, uint256 topicId, address issuer, bytes memory signature, bytes memory data) internal view returns (bool) {
+    function _isClaimValid(
+        address identity,
+        uint256 topicId,
+        address issuer,
+        bytes memory signature,
+        bytes memory data
+    ) internal view returns (bool) {
         if (issuer == address(0)) return false;
-        try IClaimIssuer(issuer).isClaimValid(IIdentity(identity), topicId, signature, data) {
+        try
+            IClaimIssuer(issuer).isClaimValid(
+                IIdentity(identity),
+                topicId,
+                signature,
+                data
+            )
+        {
             return true;
         } catch {
             return false;
@@ -223,7 +255,8 @@ contract IdentityUtilities is
         bytes32 claimId
     ) internal view returns (ClaimInfo memory info) {
         (
-            , // topic - not used
+            ,
+            // topic - not used
             uint256 scheme,
             address issuer,
             bytes memory signature,
@@ -231,8 +264,14 @@ contract IdentityUtilities is
             string memory uri
         ) = IIdentity(identity).getClaim(claimId);
 
-        bool isValid = _isClaimValid(identity, topicId, issuer, signature, data);
-        
+        bool isValid = _isClaimValid(
+            identity,
+            topicId,
+            issuer,
+            signature,
+            data
+        );
+
         info = ClaimInfo({
             topic: topicInfo,
             isValid: isValid,
@@ -267,16 +306,6 @@ contract IdentityUtilities is
         }
     }
 
-   
-
-    /**
-     * @dev Required override for UUPS upgradability authorization
-     * @param newImplementation Address of the new implementation
-     */
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
-
     /// @dev Reserved storage space to allow future layout changes
-    uint256[50] private __gap;
+    uint256[50] private __gap; // solhint-disable-line ordering
 }

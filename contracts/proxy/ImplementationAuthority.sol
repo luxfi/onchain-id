@@ -6,9 +6,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IImplementationAuthority } from "../interface/IImplementationAuthority.sol";
 import { Errors } from "../libraries/Errors.sol";
 
-
 contract ImplementationAuthority is IImplementationAuthority, Ownable {
-
     // the address of implementation of ONCHAINID
     address internal _implementation;
 
@@ -21,7 +19,9 @@ contract ImplementationAuthority is IImplementationAuthority, Ownable {
     /**
      *  @dev See {IImplementationAuthority-updateImplementation}.
      */
-    function updateImplementation(address _newImplementation) external override onlyOwner {
+    function updateImplementation(
+        address _newImplementation
+    ) external override onlyOwner {
         require(_newImplementation != address(0), Errors.ZeroAddress());
         _implementation = _newImplementation;
         emit UpdatedImplementation(_newImplementation);
@@ -30,7 +30,7 @@ contract ImplementationAuthority is IImplementationAuthority, Ownable {
     /**
      *  @dev See {IImplementationAuthority-getImplementation}.
      */
-    function getImplementation() external override view returns(address) {
+    function getImplementation() external view override returns (address) {
         return _implementation;
     }
 }

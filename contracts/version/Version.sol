@@ -12,6 +12,5 @@ contract Version {
     function version() external pure returns (string memory) {
         // version 2.2.2
         return "2.2.2";
-
     }
 }

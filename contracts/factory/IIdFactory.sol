@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.27;
 
-
 interface IIdFactory {
-
     /// events
 
     // event emitted whenever a single contract is deployed by the factory
@@ -38,7 +36,10 @@ interface IIdFactory {
      *  of the function, including calls to oracles for multichain
      *  deployment security (avoid identity theft), defining payment requirements, etc.
      */
-    function createIdentity(address _wallet, string memory _salt) external returns (address);
+    function createIdentity(
+        address _wallet,
+        string memory _salt
+    ) external returns (address);
 
     /**
      *  @dev function used to create a new Identity proxy from the factory, setting the wallet and listed keys as
@@ -68,7 +69,11 @@ interface IIdFactory {
      *  only Token factory or owner can call (owner should only use its privilege
      *  for tokens not issued by a Token factory onchain
      */
-    function createTokenIdentity(address _token, address _tokenOwner, string memory _salt) external returns (address);
+    function createTokenIdentity(
+        address _token,
+        address _tokenOwner,
+        string memory _salt
+    ) external returns (address);
 
     /**
      *  @dev function used to link a new wallet to an existing identity
@@ -119,7 +124,9 @@ interface IIdFactory {
      *  @param _identity the address of the OID contract
      *  returns an array of addresses linked to the OID
      */
-    function getWallets(address _identity) external view returns (address[] memory);
+    function getWallets(
+        address _identity
+    ) external view returns (address[] memory);
 
     /**
      *  @dev getter to fetch the token address linked to an OID contract
@@ -133,7 +140,7 @@ interface IIdFactory {
      *  @param _factory the address of the factory
      *  returns true if the address corresponds to a registered factory
      */
-    function isTokenFactory(address _factory) external view returns(bool);
+    function isTokenFactory(address _factory) external view returns (bool);
 
     /**
      *  @dev getter to know if a salt is taken for the create2 deployment

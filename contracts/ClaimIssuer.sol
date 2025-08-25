@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.27;
 
-import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-import {IClaimIssuer} from "./interface/IClaimIssuer.sol";
-import {Identity, IIdentity} from "./Identity.sol";
-import {Errors} from "./libraries/Errors.sol";
-import {KeyPurposes} from "./libraries/KeyPurposes.sol";
+import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
+import { Identity, IIdentity } from "./Identity.sol";
+import { Errors } from "./libraries/Errors.sol";
+import { KeyPurposes } from "./libraries/KeyPurposes.sol";
 
 contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
     mapping(bytes => bool) public revokedClaims;
@@ -15,10 +15,6 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
     constructor(
         address initialManagementKey
     ) Identity(initialManagementKey, false) {}
-
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyManager {}
 
     /**
      *  @dev See {IClaimIssuer-revokeClaimBySignature}.
@@ -85,7 +81,6 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
         try _identity.execute(address(_identity), 0, addClaimData) {} catch {
             revert Errors.CallFailed();
         }
-
         emit ClaimAddedTo(address(_identity), _topic, _signature, _data);
     }
 
@@ -125,4 +120,8 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
     ) public view override returns (bool) {
         return revokedClaims[_sig];
     }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyManager {}
 }
