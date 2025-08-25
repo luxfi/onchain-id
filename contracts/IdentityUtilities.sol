@@ -10,8 +10,8 @@ import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
 /**
  * @title IdentityUtilities
  * @notice Contract for registering and retrieving structured topic schemas using encoded string arrays.
- * @dev Inherits from AccessControl and supports UUPS upgrades. Topics define field names and types using
- * ABI-encoded `string[]` arrays.
+ * @dev Inherits from AccessControl and supports UUPS upgrades. Topics define field names and types
+ * using ABI-encoded `string[]` arrays.
  */
 contract IdentityUtilities is
     IIdentityUtilities,
@@ -307,5 +307,5 @@ contract IdentityUtilities is
     }
 
     /// @dev Reserved storage space to allow future layout changes
-    uint256[50] private __gap;
+    uint256[50] private __gap; // solhint-disable-line ordering
 }

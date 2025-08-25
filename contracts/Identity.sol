@@ -10,6 +10,7 @@ import { Errors } from "./libraries/Errors.sol";
 import { KeyPurposes } from "./libraries/KeyPurposes.sol";
 import { KeyTypes } from "./libraries/KeyTypes.sol";
 import { Structs } from "./storage/Structs.sol";
+import { KeyManager } from "./KeyManager.sol";
 
 import { MulticallUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -35,20 +36,14 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
  * in upgradeable contracts.
  */
 
-contract Identity is IIdentity, Version, MulticallUpgradeable {
+contract Identity is IIdentity, Version, KeyManager, MulticallUpgradeable {
     /**
-     * @dev ERC-7201 Storage Slots for upgradeable contract pattern
-     * These slots ensure no storage collision between different versions of the contract
+     * @dev ERC-7201 Storage Slot for claim management data
+     * This slot ensures no storage collision between different versions of the contract
      *
      * Formula: keccak256(abi.encode(uint256(keccak256(bytes(id))) - 1)) & ~bytes32(uint256(0xff))
      * where id is the namespace identifier
      */
-    bytes32 internal constant _KEY_STORAGE_SLOT =
-        keccak256(
-            abi.encode(
-                uint256(keccak256(bytes("onchainid.identity.key.storage"))) - 1
-            )
-        ) & ~bytes32(uint256(0xff));
     bytes32 internal constant _CLAIM_STORAGE_SLOT =
         keccak256(
             abi.encode(
@@ -56,31 +51,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
                     1
             )
         ) & ~bytes32(uint256(0xff));
-
-    /**
-     * @dev Storage struct for key management and execution data
-     * @custom:storage-location erc7201:onchainid.identity.key.storage
-     */
-    struct KeyStorage {
-        /// @dev Nonce used by the execute/approve function to track execution requests
-        uint256 executionNonce;
-        /// @dev Mapping of key hash to Key struct as defined by IERC734
-        mapping(bytes32 => Structs.Key) keys;
-        /// @dev Mapping of purpose to array of key hashes for efficient purpose-based lookups
-        mapping(uint256 => bytes32[]) keysByPurpose;
-        /// @dev Mapping of execution ID to Execution struct for tracking execution requests
-        mapping(uint256 => Structs.Execution) executions;
-        /// @dev Flag indicating if the contract has been initialized
-        bool initialized;
-        /// @dev Flag indicating if the contract can be interacted with (prevents direct calls to implementation)
-        bool canInteract;
-        /// @dev O(1) index mapping: key -> purpose -> index in key.purposes array
-        /// @dev Value 0 means not found, value 1+ means found at index (value-1)
-        mapping(bytes32 => mapping(uint256 => uint256)) purposeIndexInKey;
-        /// @dev O(1) index mapping: purpose -> key -> index in keysByPurpose array
-        /// @dev Value 0 means not found, value 1+ means found at index (value-1)
-        mapping(uint256 => mapping(bytes32 => uint256)) keyIndexInPurpose;
-    }
 
     /**
      * @dev Storage struct for claim management data
@@ -99,17 +69,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @dev Returns the key storage struct at the specified ERC-7201 slot
-     * @return s The KeyStorage struct pointer for the key management slot
-     */
-    function _getKeyStorage() internal pure returns (KeyStorage storage s) {
-        bytes32 slot = _KEY_STORAGE_SLOT;
-        assembly {
-            s.slot := slot
-        }
-    }
-
-    /**
      * @dev Returns the claim storage struct at the specified ERC-7201 slot
      * @return s The ClaimStorage struct pointer for the claim management slot
      */
@@ -119,31 +78,8 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
             s.slot := slot
         }
     }
-    /**
-     * @notice Prevent any direct calls to the implementation contract (marked by _canInteract = false).
-     */
-    modifier delegatedOnly() {
-        require(
-            _getKeyStorage().canInteract,
-            Errors.InteractingWithLibraryContractForbidden()
-        );
-        _;
-    }
 
-    /**
-     * @notice requires management key to call this function, or internal call
-     */
-    modifier onlyManager() {
-        require(
-            msg.sender == address(this) ||
-                keyHasPurpose(
-                    keccak256(abi.encode(msg.sender)),
-                    KeyPurposes.MANAGEMENT
-                ),
-            Errors.SenderDoesNotHaveManagementKey()
-        );
-        _;
-    }
+    // Key management functionality is inherited from KeyManager contract
 
     /**
      * @notice requires claim key to call this function, or internal call
@@ -187,99 +123,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @dev See {IERC734-execute}.
-     * @notice Passes an execution instruction to the keymanager.
-     *
-     * Execution flow:
-     * 1. If the sender is an ACTION key and the destination is external, execution is auto-approved
-     * 2. If the sender is a MANAGEMENT key, execution is auto-approved for any destination
-     * 3. If the sender is a CLAIM_SIGNER key and the call is to addClaim, execution is auto-approved
-     * 4. Otherwise, the execution request must be approved via the `approve` method
-     *
-     * @param _to The destination address for the execution
-     * @param _value The amount of ETH to send with the execution
-     * @param _data The calldata for the execution
-     * @return executionId The ID to use in the approve function to approve or reject this execution
-     */
-    function execute(
-        address _to,
-        uint256 _value,
-        bytes memory _data
-    ) external payable override delegatedOnly returns (uint256 executionId) {
-        KeyStorage storage ks = _getKeyStorage();
-        uint256 _executionId = ks.executionNonce;
-        ks.executions[_executionId].to = _to;
-        ks.executions[_executionId].value = _value;
-        ks.executions[_executionId].data = _data;
-        ks.executionNonce++;
-
-        emit ExecutionRequested(_executionId, _to, _value, _data);
-
-        // Check if execution can be auto-approved
-        if (_canAutoApproveExecution(_to, _data)) {
-            _approve(_executionId, true);
-        }
-
-        return _executionId;
-    }
-
-    /**
-     * @notice Gets the current execution nonce
-     * @return The current execution nonce
-     */
-    function getCurrentNonce() external view returns (uint256) {
-        return _getKeyStorage().executionNonce;
-    }
-
-    /**
-     * @dev See {IERC734-getKey}.
-     * @notice Implementation of the getKey function from the ERC-734 standard
-     * @param _key The public key.  for non-hex and long keys, its the Keccak256 hash of the key
-     * @return purposes Returns the full key data, if present in the identity.
-     * @return keyType Returns the full key data, if present in the identity.
-     * @return key Returns the full key data, if present in the identity.
-     */
-    function getKey(
-        bytes32 _key
-    )
-        external
-        view
-        override
-        returns (uint256[] memory purposes, uint256 keyType, bytes32 key)
-    {
-        KeyStorage storage ks = _getKeyStorage();
-        return (
-            ks.keys[_key].purposes,
-            ks.keys[_key].keyType,
-            ks.keys[_key].key
-        );
-    }
-
-    /**
-     * @dev See {IERC734-getKeyPurposes}.
-     * @notice gets the purposes of a key
-     * @param _key The public key.  for non-hex and long keys, its the Keccak256 hash of the key
-     * @return _purposes Returns the purposes of the specified key
-     */
-    function getKeyPurposes(
-        bytes32 _key
-    ) external view override returns (uint256[] memory _purposes) {
-        return (_getKeyStorage().keys[_key].purposes);
-    }
-
-    /**
-     * @dev See {IERC734-getKeysByPurpose}.
-     * @notice gets all the keys with a specific purpose from an identity
-     * @param _purpose a uint256[] Array of the key types, like 1 = MANAGEMENT, 2 = ACTION, 3 = CLAIM, 4 = ENCRYPTION
-     * @return keys Returns an array of public key bytes32 hold by this identity and having the specified purpose
-     */
-    function getKeysByPurpose(
-        uint256 _purpose
-    ) external view override returns (bytes32[] memory keys) {
-        return _getKeyStorage().keysByPurpose[_purpose];
-    }
-
-    /**
      * @dev See {IERC735-getClaimIdsByTopic}.
      * @notice Implementation of the getClaimIdsByTopic function from the ERC-735 standard.
      * used to get all the claims from the specified topic
@@ -290,17 +133,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
         uint256 _topic
     ) external view override returns (bytes32[] memory claimIds) {
         return _getClaimStorage().claimsByTopic[_topic];
-    }
-
-    /**
-     * @notice Gets the execution data for a specific execution ID
-     * @param _executionId The execution ID to get data for
-     * @return execution including (to, value, data, approved, executed)
-     */
-    function getExecutionData(
-        uint256 _executionId
-    ) external view returns (Structs.Execution memory execution) {
-        return _getKeyStorage().executions[_executionId];
     }
 
     /**
@@ -316,120 +148,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
             interfaceId == type(IERC734).interfaceId ||
             interfaceId == type(IERC735).interfaceId ||
             interfaceId == type(IIdentity).interfaceId);
-    }
-
-    /**
-     * @dev See {IERC734-addKey}.
-     * @notice Adds a key to the identity with the specified purpose.
-     *
-     * This function uses O(1) index mappings for efficient lookups and updates, eliminating
-     * the need for linear searches through arrays.
-     *
-     * Key purposes:
-     * - MANAGEMENT: Keys that can manage the identity (add/remove keys, etc.)
-     * - ACTION: Keys that can perform actions on behalf of the identity
-     * - CLAIM_SIGNER: Keys that can sign claims for other identities
-     * - ENCRYPTION: Keys used for data encryption
-     *
-     * Access control: Only MANAGEMENT keys or the identity itself can add keys.
-     *
-     * @param _key The keccak256 hash of the ethereum address or public key
-     * @param _purpose The purpose of the key (MANAGEMENT, ACTION, CLAIM_SIGNER, ENCRYPTION)
-     * @param _type The type of key (ECDSA, RSA, etc.)
-     * @return success True if the key was successfully added
-     *
-     */
-    function addKey(
-        bytes32 _key,
-        uint256 _purpose,
-        uint256 _type
-    ) public override delegatedOnly onlyManager returns (bool success) {
-        KeyStorage storage ks = _getKeyStorage();
-
-        // 1. Early validation: Reject if key already has this purpose (O(1) lookup)
-        require(
-            ks.purposeIndexInKey[_key][_purpose] == 0,
-            Errors.KeyAlreadyHasPurpose(_key, _purpose)
-        );
-
-        Structs.Key storage k = ks.keys[_key];
-
-        // 2. Initialize new key if it doesn't exist yet
-        if (k.key == bytes32(0)) {
-            k.key = _key;
-            k.keyType = _type;
-        }
-
-        // 3. Add purpose to key.purposes array and update index mapping
-        k.purposes.push(_purpose);
-        ks.purposeIndexInKey[_key][_purpose] = k.purposes.length; // Store 1-based index
-
-        // 4. Add key to _keysByPurpose array and update index mapping
-        ks.keysByPurpose[_purpose].push(_key);
-        ks.keyIndexInPurpose[_purpose][_key] = ks
-            .keysByPurpose[_purpose]
-            .length; // Store 1-based index
-
-        emit KeyAdded(_key, _purpose, _type);
-        return true;
-    }
-
-    /**
-     * @dev See {IERC734-removeKey}.
-     * @notice Removes a purpose from a key.
-     *
-     * This function uses O(1) index mappings and efficient swap-and-pop technique
-     * to maintain array consistency without gaps, ensuring optimal gas usage.
-     *
-     * The swap-and-pop technique:
-     * 1. Moves the last element to the position of the element being removed
-     * 2. Updates the index mappings for the swapped element
-     * 3. Removes the last element (which is now the target element)
-     *
-     * Access control: Only MANAGEMENT keys or the identity itself can remove keys.
-     *
-     * @param _key The key to remove the purpose from
-     * @param _purpose The purpose to remove from the key
-     * @return success True if the purpose was successfully removed
-     *
-     */
-    function removeKey(
-        bytes32 _key,
-        uint256 _purpose
-    ) public override delegatedOnly onlyManager returns (bool success) {
-        KeyStorage storage ks = _getKeyStorage();
-
-        // Fetch the key data for efficient access
-        Structs.Key storage k = ks.keys[_key];
-
-        // 1. Validate key exists
-        require(k.key == _key, Errors.KeyNotRegistered(_key));
-
-        // 2. Validate key has the specified purpose (O(1) lookup)
-        uint256 purposeIdxPlusOne = ks.purposeIndexInKey[_key][_purpose];
-        require(
-            purposeIdxPlusOne > 0,
-            Errors.KeyDoesNotHavePurpose(_key, _purpose)
-        );
-        uint256 purposeIdx = purposeIdxPlusOne - 1; // Convert to 0-based index
-
-        // Remove purpose from key struct
-        _removePurposeFromKey(_key, _purpose, purposeIdx);
-
-        // Remove key from purpose index
-        uint256 keyIdxPlusOne = ks.keyIndexInPurpose[_purpose][_key];
-        uint256 keyIdx = keyIdxPlusOne - 1; // Convert to 0-based index
-        _removeKeyFromPurposeIndex(_key, _purpose, keyIdx);
-
-        // Emit event and cleanup
-        emit KeyRemoved(_key, _purpose, k.keyType);
-
-        // If key has no more purposes, delete the entire key struct to save gas
-        if (k.purposes.length == 0) {
-            delete ks.keys[_key];
-        }
-
-        return true;
     }
 
     /**
@@ -557,44 +275,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     *  @dev See {IERC734-approve}.
-     *  @notice Approves an execution.
-     *  If the sender is an ACTION key and the destination address is not the identity contract itself, then the
-     *  approval is authorized and the operation would be performed.
-     *  If the destination address is the identity itself, then the execution would be authorized and performed only
-     *  if the sender is a MANAGEMENT key.
-     */
-    function approve(
-        uint256 _id,
-        bool _shouldApprove
-    ) public override delegatedOnly returns (bool success) {
-        KeyStorage storage ks = _getKeyStorage();
-        require(_id < ks.executionNonce, Errors.InvalidRequestId());
-        require(!ks.executions[_id].executed, Errors.RequestAlreadyExecuted());
-
-        // Validate that the sender has the appropriate key purpose
-        if (ks.executions[_id].to == address(this)) {
-            require(
-                keyHasPurpose(
-                    keccak256(abi.encode(msg.sender)),
-                    KeyPurposes.MANAGEMENT
-                ),
-                Errors.SenderDoesNotHaveManagementKey()
-            );
-        } else {
-            require(
-                keyHasPurpose(
-                    keccak256(abi.encode(msg.sender)),
-                    KeyPurposes.ACTION
-                ),
-                Errors.SenderDoesNotHaveActionKey()
-            );
-        }
-
-        return _approve(_id, _shouldApprove);
-    }
-
-    /**
      * @dev See {IERC735-getClaim}.
      * @notice Implementation of the getClaim function from the ERC-735 standard.
      *
@@ -637,36 +317,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
             cs.claims[_claimId].data,
             cs.claims[_claimId].uri
         );
-    }
-
-    /**
-     * @dev See {IERC734-keyHasPurpose}.
-     * @notice Checks if a key has a specific purpose or MANAGEMENT purpose.
-     *
-     * This function uses O(1) index mappings for efficient lookups instead of
-     * linear search through the purposes array. MANAGEMENT keys have universal
-     * permissions according to the ERC-734 standard, so any key with MANAGEMENT
-     * purpose will return true for any purpose.
-     *
-     * @param _key The key to check (keccak256 hash of the address)
-     * @param _purpose The purpose to check for
-     * @return result True if the key has the specified purpose or MANAGEMENT purpose
-     *
-     */
-    function keyHasPurpose(
-        bytes32 _key,
-        uint256 _purpose
-    ) public view override returns (bool result) {
-        KeyStorage storage ks = _getKeyStorage();
-
-        // Early return if key doesn't exist
-        if (ks.keys[_key].key == 0) return false;
-
-        // O(1) lookup: Check if key has the specific purpose OR MANAGEMENT purpose
-        // MANAGEMENT keys have universal permissions in the ERC-734 standard
-        return
-            ks.purposeIndexInKey[_key][_purpose] > 0 ||
-            ks.purposeIndexInKey[_key][KeyPurposes.MANAGEMENT] > 0;
     }
 
     /**
@@ -739,89 +389,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @dev Internal method to handle the actual approval logic
-     * @param _id The execution ID to approve
-     * @param _shouldApprove Whether to approve or reject the execution
-     * @return success Whether the execution was successful
-     */
-    function _approve(
-        uint256 _id,
-        bool _shouldApprove
-    ) internal returns (bool success) {
-        KeyStorage storage ks = _getKeyStorage();
-        emit Approved(_id, _shouldApprove);
-
-        if (_shouldApprove) {
-            ks.executions[_id].approved = true;
-
-            // solhint-disable-next-line avoid-low-level-calls
-            (success, ) = ks.executions[_id].to.call{
-                value: (ks.executions[_id].value)
-            }(ks.executions[_id].data);
-
-            if (success) {
-                ks.executions[_id].executed = true;
-
-                emit Executed(
-                    _id,
-                    ks.executions[_id].to,
-                    ks.executions[_id].value,
-                    ks.executions[_id].data
-                );
-
-                return true;
-            } else {
-                emit ExecutionFailed(
-                    _id,
-                    ks.executions[_id].to,
-                    ks.executions[_id].value,
-                    ks.executions[_id].data
-                );
-
-                return false;
-            }
-        } else {
-            ks.executions[_id].approved = false;
-        }
-        return false;
-    }
-
-    /**
-     * @dev Internal helper to remove purpose from key struct using swap-and-pop technique.
-     *
-     * This function efficiently removes a purpose from a key's purposes array while
-     * maintaining array consistency and updating the index mappings.
-     *
-     * @param _key The key to remove the purpose from
-     * @param _purpose The purpose to remove
-     * @param _purposeIdx The 0-based index of the purpose in the key.purposes array
-     */
-    function _removePurposeFromKey(
-        bytes32 _key,
-        uint256 _purpose,
-        uint256 _purposeIdx
-    ) internal {
-        KeyStorage storage ks = _getKeyStorage();
-        Structs.Key storage k = ks.keys[_key];
-        uint256 lastPurposeIdx = k.purposes.length - 1;
-
-        if (_purposeIdx != lastPurposeIdx) {
-            // Swap-and-pop: Move last element to current position to maintain array consistency
-            uint256 lastPurpose = k.purposes[lastPurposeIdx];
-            k.purposes[_purposeIdx] = lastPurpose;
-
-            // Update index mapping for the swapped purpose
-            ks.purposeIndexInKey[_key][lastPurpose] = _purposeIdx + 1;
-        }
-
-        // Remove the last element (either the target or the swapped element)
-        k.purposes.pop();
-
-        // Clean up the index mapping for the removed purpose
-        delete ks.purposeIndexInKey[_key][_purpose];
-    }
-
-    /**
      * @dev Internal helper to remove claim from topic index using swap-and-pop technique.
      *
      * This function efficiently removes a claim from a topic's claims array while
@@ -857,40 +424,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @dev Internal helper to remove key from purpose index using swap-and-pop technique.
-     *
-     * This function efficiently removes a key from a purpose's keys array while
-     * maintaining array consistency and updating the index mappings.
-     *
-     * @param _key The key to remove from the purpose
-     * @param _purpose The purpose to remove the key from
-     * @param _keyIdx The 0-based index of the key in the keysByPurpose array
-     */
-    function _removeKeyFromPurposeIndex(
-        bytes32 _key,
-        uint256 _purpose,
-        uint256 _keyIdx
-    ) internal {
-        KeyStorage storage ks = _getKeyStorage();
-        uint256 lastKeyIdx = ks.keysByPurpose[_purpose].length - 1;
-
-        if (_keyIdx != lastKeyIdx) {
-            // Swap-and-pop: Move last key to current position
-            bytes32 lastKey = ks.keysByPurpose[_purpose][lastKeyIdx];
-            ks.keysByPurpose[_purpose][_keyIdx] = lastKey;
-
-            // Update index mapping for the swapped key
-            ks.keyIndexInPurpose[_purpose][lastKey] = _keyIdx + 1;
-        }
-
-        // Remove the last key (either the target or the swapped key)
-        ks.keysByPurpose[_purpose].pop();
-
-        // Clean up the index mapping for this key in the purpose group
-        delete ks.keyIndexInPurpose[_purpose][_key];
-    }
-
-    /**
      * @dev Internal helper to setup new claim tracking with index mappings.
      *
      * This function initializes the index mappings for a new claim to enable
@@ -910,6 +443,7 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
         cs.claimIndexInTopic[_topic][_claimId] = cs
             .claimsByTopic[_topic]
             .length; // index+1
+
         cs.claimExists[_claimId] = true;
         cs.claims[_claimId].issuer = _issuer;
     }
@@ -991,63 +525,6 @@ contract Identity is IIdentity, Version, MulticallUpgradeable {
         ks.keyIndexInPurpose[KeyPurposes.MANAGEMENT][_key] = 1; // First key at index 0 + 1
 
         emit KeyAdded(_key, KeyPurposes.MANAGEMENT, KeyTypes.ECDSA);
-    }
-
-    /**
-     * @dev Internal method to check if an execution can be auto-approved based on key purposes.
-     *
-     * This function determines whether an execution request can be automatically approved
-     * without requiring manual approval through the approve function.
-     *
-     * Auto-approval conditions:
-     * 1. MANAGEMENT keys can auto-approve any execution
-     * 2. CLAIM_SIGNER keys can auto-approve addClaim calls to the identity itself
-     * 3. ACTION keys can auto-approve external calls (not to the identity itself)
-     *
-     * @param _to The target address of the execution
-     * @param _data The execution data (calldata)
-     * @return canAutoApprove Whether the execution can be auto-approved
-     */
-    function _canAutoApproveExecution(
-        address _to,
-        bytes memory _data
-    ) internal view returns (bool canAutoApprove) {
-        // MANAGEMENT keys can auto-approve any execution
-        if (
-            keyHasPurpose(
-                keccak256(abi.encode(msg.sender)),
-                KeyPurposes.MANAGEMENT
-            )
-        ) {
-            return true;
-        }
-
-        // For identity contract calls, check if it's an addClaim call with CLAIM_SIGNER key
-        if (_to == address(this) && _data.length >= 4) {
-            bytes4 selector;
-            assembly {
-                selector := mload(add(_data, 32))
-            }
-            if (
-                selector == this.addClaim.selector &&
-                keyHasPurpose(
-                    keccak256(abi.encode(msg.sender)),
-                    KeyPurposes.CLAIM_SIGNER
-                )
-            ) {
-                return true;
-            }
-        }
-
-        // ACTION keys can auto-approve external calls
-        if (
-            _to != address(this) &&
-            keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)
-        ) {
-            return true;
-        }
-
-        return false;
     }
 
     /**
