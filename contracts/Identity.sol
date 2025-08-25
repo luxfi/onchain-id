@@ -512,19 +512,8 @@ contract Identity is IIdentity, Version, KeyManager, MulticallUpgradeable {
         ks.initialized = true;
         ks.canInteract = true;
 
-        // Set up the initial management key
-        bytes32 _key = keccak256(abi.encode(initialManagementKey));
-        ks.keys[_key].key = _key;
-        ks.keys[_key].purposes = [KeyPurposes.MANAGEMENT]; // MANAGEMENT purpose
-        ks.keys[_key].keyType = KeyTypes.ECDSA; // ECDSA key type
-        ks.keysByPurpose[KeyPurposes.MANAGEMENT].push(_key);
-
-        // Initialize index mappings for O(1) lookups
-        // Store 1-based indices (0 means not found, 1+ means found at index-1)
-        ks.purposeIndexInKey[_key][KeyPurposes.MANAGEMENT] = 1; // First purpose at index 0 + 1
-        ks.keyIndexInPurpose[KeyPurposes.MANAGEMENT][_key] = 1; // First key at index 0 + 1
-
-        emit KeyAdded(_key, KeyPurposes.MANAGEMENT, KeyTypes.ECDSA);
+        // Use the inherited method from KeyManager to set up the initial management key
+        _setupInitialManagementKey(initialManagementKey);
     }
 
     /**
