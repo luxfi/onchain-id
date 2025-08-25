@@ -10,7 +10,8 @@ import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
 /**
  * @title IdentityUtilities
  * @notice Contract for registering and retrieving structured topic schemas using encoded string arrays.
- * @dev Inherits from AccessControl and supports UUPS upgrades. Topics define field names and types using ABI-encoded `string[]` arrays.
+ * @dev Inherits from AccessControl and supports UUPS upgrades. Topics define field names and types
+ * using ABI-encoded `string[]` arrays.
  */
 contract IdentityUtilities is
     IIdentityUtilities,
@@ -205,6 +206,14 @@ contract IdentityUtilities is
         }
     }
 
+    /**
+     * @dev Required override for UUPS upgradability authorization
+     * @param newImplementation Address of the new implementation
+     */
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
     function _countTotalClaims(
         address identity,
         uint256[] calldata topicIds
@@ -297,14 +306,6 @@ contract IdentityUtilities is
         }
     }
 
-    /**
-     * @dev Required override for UUPS upgradability authorization
-     * @param newImplementation Address of the new implementation
-     */
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
-
     /// @dev Reserved storage space to allow future layout changes
-    uint256[50] private __gap;
+    uint256[50] private __gap; // solhint-disable-line ordering
 }

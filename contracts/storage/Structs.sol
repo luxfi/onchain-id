@@ -54,7 +54,8 @@ contract Structs {
      *  anymore, the claim SHOULD be treated as invalid. The issuer can also be a contract address itself, at which the
      *  claim can be verified using the call data.
      *  signature: Signature which is the proof that the claim issuer issued a claim of topic for this identity. it
-     *  MUST be a signed message of the following structure: `keccak256(abi.encode(identityHolder_address, topic, data))`
+     *  MUST be a signed message of the following structure:
+     *  `keccak256(abi.encode(identityHolder_address, topic, data))`
      *  data: The hash of the claim data, sitting in another location, a bit-mask, call data, or actual data based on
      *  the claim scheme.
      *  uri: The location of the claim, this can be HTTP links, swarm hashes, IPFS hashes, and such.

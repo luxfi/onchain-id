@@ -16,10 +16,6 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
         address initialManagementKey
     ) Identity(initialManagementKey, false) {}
 
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyManager {}
-
     /**
      *  @dev See {IClaimIssuer-revokeClaimBySignature}.
      */
@@ -124,4 +120,8 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
     ) public view override returns (bool) {
         return revokedClaims[_sig];
     }
+
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyManager {}
 }

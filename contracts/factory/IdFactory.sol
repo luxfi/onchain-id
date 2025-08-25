@@ -11,10 +11,10 @@ import { KeyPurposes } from "../libraries/KeyPurposes.sol";
 import { KeyTypes } from "../libraries/KeyTypes.sol";
 
 contract IdFactory is IIdFactory, Ownable {
-    mapping(address => bool) private _tokenFactories;
-
     // address of the _implementationAuthority contract making the link to the implementation contract
     address public immutable implementationAuthority;
+
+    mapping(address => bool) private _tokenFactories;
 
     // as it is not possible to deploy 2 times the same contract address, this mapping allows us to check which
     // salt is taken and which is not

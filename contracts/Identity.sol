@@ -85,21 +85,6 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
-     * @dev See {IERC165-supportsInterface}.
-     * @notice Returns true if this contract implements the interface defined by interfaceId
-     * @param interfaceId The interface identifier, as specified in ERC-165
-     * @return true if the interface is supported, false otherwise
-     */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) external pure returns (bool) {
-        return (interfaceId == type(IERC165).interfaceId ||
-            interfaceId == type(IERC734).interfaceId ||
-            interfaceId == type(IERC735).interfaceId ||
-            interfaceId == type(IIdentity).interfaceId);
-    }
-
-    /**
      * @dev See {IERC734-execute}.
      * @notice Passes an execution instruction to the keymanager.
      * If the sender is an ACTION key and the destination address is not the identity contract itself, then the
@@ -206,6 +191,21 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
+     * @dev See {IERC165-supportsInterface}.
+     * @notice Returns true if this contract implements the interface defined by interfaceId
+     * @param interfaceId The interface identifier, as specified in ERC-165
+     * @return true if the interface is supported, false otherwise
+     */
+    function supportsInterface(
+        bytes4 interfaceId
+    ) external pure returns (bool) {
+        return (interfaceId == type(IERC165).interfaceId ||
+            interfaceId == type(IERC734).interfaceId ||
+            interfaceId == type(IERC735).interfaceId ||
+            interfaceId == type(IIdentity).interfaceId);
+    }
+
+    /**
      * @notice implementation of the addKey function of the ERC-734 standard
      * Adds a _key to the identity. The _purpose specifies the purpose of key. Initially we propose four purposes:
      * 1: MANAGEMENT keys, which can manage the identity
@@ -287,101 +287,6 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         }
 
         return _approve(_id, _shouldApprove);
-    }
-
-    /**
-     * @dev Internal method to handle the actual approval logic
-     * @param _id The execution ID to approve
-     * @param _shouldApprove Whether to approve or reject the execution
-     * @return success Whether the execution was successful
-     */
-    function _approve(
-        uint256 _id,
-        bool _shouldApprove
-    ) internal returns (bool success) {
-        emit Approved(_id, _shouldApprove);
-
-        if (_shouldApprove) {
-            _executions[_id].approved = true;
-
-            // solhint-disable-next-line avoid-low-level-calls
-            (success, ) = _executions[_id].to.call{
-                value: (_executions[_id].value)
-            }(_executions[_id].data);
-
-            if (success) {
-                _executions[_id].executed = true;
-
-                emit Executed(
-                    _id,
-                    _executions[_id].to,
-                    _executions[_id].value,
-                    _executions[_id].data
-                );
-
-                return true;
-            } else {
-                emit ExecutionFailed(
-                    _id,
-                    _executions[_id].to,
-                    _executions[_id].value,
-                    _executions[_id].data
-                );
-
-                return false;
-            }
-        } else {
-            _executions[_id].approved = false;
-        }
-        return false;
-    }
-
-    /**
-     * @dev Internal method to check if an execution can be auto-approved based on key purposes
-     * @param _to The target address of the execution
-     * @param _data The execution data
-     * @return canAutoApprove Whether the execution can be auto-approved
-     */
-    function _canAutoApproveExecution(
-        address _to,
-        bytes memory _data
-    ) internal view returns (bool canAutoApprove) {
-        // MANAGEMENT keys can auto-approve any execution
-        if (
-            keyHasPurpose(
-                keccak256(abi.encode(msg.sender)),
-                KeyPurposes.MANAGEMENT
-            )
-        ) {
-            return true;
-        }
-
-        // For identity contract calls, check if it's an addClaim call with CLAIM_SIGNER key
-        if (_to == address(this) && _data.length >= 4) {
-            bytes4 selector;
-            assembly {
-                selector := mload(add(_data, 32))
-            }
-            if (
-                selector == this.addClaim.selector &&
-                keyHasPurpose(
-                    keccak256(abi.encode(msg.sender)),
-                    KeyPurposes.CLAIM_SIGNER
-                )
-            ) {
-                return true;
-            }
-        }
-
-        // ACTION keys can auto-approve external calls
-        if (
-            _to != address(this) &&
-            keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)
-        ) {
-            return true;
-        }
-
-        return false;
     }
 
     /**
@@ -468,50 +373,9 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         onlyClaimKey
         returns (bytes32 claimRequestId)
     {
-        if (_issuer != address(this)) {
-            require(
-                IClaimIssuer(_issuer).isClaimValid(
-                    IIdentity(address(this)),
-                    _topic,
-                    _signature,
-                    _data
-                ),
-                Errors.InvalidClaim()
-            );
-        }
+        _validateClaimIfExternal(_issuer, _topic, _signature, _data);
 
-        bytes32 claimId = keccak256(abi.encode(_issuer, _topic));
-        _claims[claimId].topic = _topic;
-        _claims[claimId].scheme = _scheme;
-        _claims[claimId].signature = _signature;
-        _claims[claimId].data = _data;
-        _claims[claimId].uri = _uri;
-
-        if (_claims[claimId].issuer != _issuer) {
-            _claimsByTopic[_topic].push(claimId);
-            _claims[claimId].issuer = _issuer;
-
-            emit ClaimAdded(
-                claimId,
-                _topic,
-                _scheme,
-                _issuer,
-                _signature,
-                _data,
-                _uri
-            );
-        } else {
-            emit ClaimChanged(
-                claimId,
-                _topic,
-                _scheme,
-                _issuer,
-                _signature,
-                _data,
-                _uri
-            );
-        }
-        return claimId;
+        return _setClaimData(_topic, _scheme, _issuer, _signature, _data, _uri);
     }
 
     /**
@@ -700,6 +564,53 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
     }
 
     /**
+     * @dev Internal method to handle the actual approval logic
+     * @param _id The execution ID to approve
+     * @param _shouldApprove Whether to approve or reject the execution
+     * @return success Whether the execution was successful
+     */
+    function _approve(
+        uint256 _id,
+        bool _shouldApprove
+    ) internal returns (bool success) {
+        emit Approved(_id, _shouldApprove);
+
+        if (_shouldApprove) {
+            _executions[_id].approved = true;
+
+            // solhint-disable-next-line avoid-low-level-calls
+            (success, ) = _executions[_id].to.call{
+                value: (_executions[_id].value)
+            }(_executions[_id].data);
+
+            if (success) {
+                _executions[_id].executed = true;
+
+                emit Executed(
+                    _id,
+                    _executions[_id].to,
+                    _executions[_id].value,
+                    _executions[_id].data
+                );
+
+                return true;
+            } else {
+                emit ExecutionFailed(
+                    _id,
+                    _executions[_id].to,
+                    _executions[_id].value,
+                    _executions[_id].data
+                );
+
+                return false;
+            }
+        } else {
+            _executions[_id].approved = false;
+        }
+        return false;
+    }
+
+    /**
      * @notice Initializer internal function for the Identity contract.
      *
      * @param initialManagementKey The ethereum address to be set as the management key of the ONCHAINID.
@@ -719,6 +630,125 @@ contract Identity is Storage, IIdentity, Version, MulticallUpgradeable {
         _keys[_key].keyType = 1;
         _keysByPurpose[1].push(_key);
         emit KeyAdded(_key, 1, 1);
+    }
+
+    /**
+     * @dev Internal helper to set claim data
+     */
+    function _setClaimData(
+        uint256 _topic,
+        uint256 _scheme,
+        address _issuer,
+        bytes memory _signature,
+        bytes memory _data,
+        string memory _uri
+    ) internal returns (bytes32) {
+        bytes32 _claimId = keccak256(abi.encode(_issuer, _topic));
+
+        _claims[_claimId].topic = _topic;
+        _claims[_claimId].scheme = _scheme;
+        _claims[_claimId].signature = _signature;
+        _claims[_claimId].data = _data;
+        _claims[_claimId].uri = _uri;
+
+        bool isNewClaim = _claims[_claimId].issuer != _issuer;
+        if (isNewClaim) {
+            _claimsByTopic[_topic].push(_claimId);
+            _claims[_claimId].issuer = _issuer;
+        }
+
+        if (isNewClaim) {
+            emit ClaimAdded(
+                _claimId,
+                _topic,
+                _scheme,
+                _issuer,
+                _signature,
+                _data,
+                _uri
+            );
+        } else {
+            emit ClaimChanged(
+                _claimId,
+                _topic,
+                _scheme,
+                _issuer,
+                _signature,
+                _data,
+                _uri
+            );
+        }
+        return _claimId;
+    }
+
+    /**
+     * @dev Internal method to check if an execution can be auto-approved based on key purposes
+     * @param _to The target address of the execution
+     * @param _data The execution data
+     * @return canAutoApprove Whether the execution can be auto-approved
+     */
+    function _canAutoApproveExecution(
+        address _to,
+        bytes memory _data
+    ) internal view returns (bool canAutoApprove) {
+        // MANAGEMENT keys can auto-approve any execution
+        if (
+            keyHasPurpose(
+                keccak256(abi.encode(msg.sender)),
+                KeyPurposes.MANAGEMENT
+            )
+        ) {
+            return true;
+        }
+
+        // For identity contract calls, check if it's an addClaim call with CLAIM_SIGNER key
+        if (_to == address(this) && _data.length >= 4) {
+            bytes4 selector;
+            assembly {
+                selector := mload(add(_data, 32))
+            }
+            if (
+                selector == this.addClaim.selector &&
+                keyHasPurpose(
+                    keccak256(abi.encode(msg.sender)),
+                    KeyPurposes.CLAIM_SIGNER
+                )
+            ) {
+                return true;
+            }
+        }
+
+        // ACTION keys can auto-approve external calls
+        if (
+            _to != address(this) &&
+            keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @dev Internal helper to validate external claims
+     */
+    function _validateClaimIfExternal(
+        address _issuer,
+        uint256 _topic,
+        bytes memory _signature,
+        bytes memory _data
+    ) internal view {
+        if (_issuer != address(this)) {
+            require(
+                IClaimIssuer(_issuer).isClaimValid(
+                    IIdentity(address(this)),
+                    _topic,
+                    _signature,
+                    _data
+                ),
+                Errors.InvalidClaim()
+            );
+        }
     }
 
     /**
