@@ -27,20 +27,6 @@ import { IERC734 } from "./interface/IERC734.sol";
  */
 contract KeyManager is IERC734 {
     /**
-     * @dev ERC-7201 Storage Slot for upgradeable contract pattern
-     * This slot ensures no storage collision between different versions of the contract
-     *
-     * Formula: keccak256(abi.encode(uint256(keccak256(bytes(id))) - 1)) & ~bytes32(uint256(0xff))
-     * where id is the namespace identifier
-     */
-    bytes32 internal constant _KEY_STORAGE_SLOT =
-        keccak256(
-            abi.encode(
-                uint256(keccak256(bytes("onchainid.keymanager.storage"))) - 1
-            )
-        ) & ~bytes32(uint256(0xff));
-
-    /**
      * @dev Storage struct for key management and execution data
      * @custom:storage-location erc7201:onchainid.keymanager.storage
      */
@@ -66,15 +52,18 @@ contract KeyManager is IERC734 {
     }
 
     /**
-     * @dev Returns the key storage struct at the specified ERC-7201 slot
-     * @return s The KeyStorage struct pointer for the key management slot
+     * @dev ERC-7201 Storage Slot for upgradeable contract pattern
+     * This slot ensures no storage collision between different versions of the contract
+     *
+     * Formula: keccak256(abi.encode(uint256(keccak256(bytes(id))) - 1)) & ~bytes32(uint256(0xff))
+     * where id is the namespace identifier
      */
-    function _getKeyStorage() internal pure returns (KeyStorage storage s) {
-        bytes32 slot = _KEY_STORAGE_SLOT;
-        assembly {
-            s.slot := slot
-        }
-    }
+    bytes32 internal constant _KEY_STORAGE_SLOT =
+        keccak256(
+            abi.encode(
+                uint256(keccak256(bytes("onchainid.keymanager.storage"))) - 1
+            )
+        ) & ~bytes32(uint256(0xff));
 
     /**
      * @notice Prevent any direct calls to the implementation contract (marked by _canInteract = false).
@@ -431,55 +420,6 @@ contract KeyManager is IERC734 {
     }
 
     /**
-     * @dev Internal method to check if an execution can be auto-approved based on key purposes.
-     *
-     * This function determines whether an execution request can be automatically approved
-     * without requiring manual approval through the approve function.
-     *
-     * Auto-approval conditions:
-     * 1. MANAGEMENT keys can auto-approve any execution
-     * 2. CLAIM_SIGNER keys can auto-approve addClaim calls to the identity itself
-     * 3. ACTION keys can auto-approve external calls (not to the identity itself)
-     *
-     * @param _to The target address of the execution
-     * @return canAutoApprove Whether the execution can be auto-approved
-     */
-    function _canAutoApproveExecution(
-        address _to
-    ) internal view virtual returns (bool canAutoApprove) {
-        // MANAGEMENT keys can auto-approve any execution
-        if (
-            keyHasPurpose(
-                keccak256(abi.encode(msg.sender)),
-                KeyPurposes.MANAGEMENT
-            )
-        ) {
-            return true;
-        }
-
-        // For identity contract calls, check if it's a CLAIM_SIGNER key
-        if (
-            _to == address(this) &&
-            keyHasPurpose(
-                keccak256(abi.encode(msg.sender)),
-                KeyPurposes.CLAIM_SIGNER
-            )
-        ) {
-            return true;
-        }
-
-        // ACTION keys can auto-approve external calls
-        if (
-            _to != address(this) &&
-            keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)
-        ) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
      * @dev Internal helper to remove a purpose from a key using swap-and-pop technique
      * @param _key The key to remove the purpose from
      * @param _purpose The purpose to remove
@@ -581,6 +521,14 @@ contract KeyManager is IERC734 {
     }
 
     /**
+     * @dev Internal helper to set canInteract flag
+     * @param _canInteract The value to set
+     */
+    function _setCanInteract(bool _canInteract) internal {
+        _getKeyStorage().canInteract = _canInteract;
+    }
+
+    /**
      * @dev Internal helper to check if key storage is initialized
      * @return True if key storage is initialized
      */
@@ -588,6 +536,54 @@ contract KeyManager is IERC734 {
         return _getKeyStorage().initialized;
     }
 
+    /**
+     * @dev Internal method to check if an execution can be auto-approved based on key purposes.
+     *
+     * This function determines whether an execution request can be automatically approved
+     * without requiring manual approval through the approve function.
+     *
+     * Auto-approval conditions:
+     * 1. MANAGEMENT keys can auto-approve any execution
+     * 2. CLAIM_SIGNER keys can auto-approve addClaim calls to the identity itself
+     * 3. ACTION keys can auto-approve external calls (not to the identity itself)
+     *
+     * @param _to The target address of the execution
+     * @return canAutoApprove Whether the execution can be auto-approved
+     */
+    function _canAutoApproveExecution(
+        address _to
+    ) internal view virtual returns (bool canAutoApprove) {
+        // MANAGEMENT keys can auto-approve any execution
+        if (
+            keyHasPurpose(
+                keccak256(abi.encode(msg.sender)),
+                KeyPurposes.MANAGEMENT
+            )
+        ) {
+            return true;
+        }
+
+        // For identity contract calls, check if it's a CLAIM_SIGNER key
+        if (
+            _to == address(this) &&
+            keyHasPurpose(
+                keccak256(abi.encode(msg.sender)),
+                KeyPurposes.CLAIM_SIGNER
+            )
+        ) {
+            return true;
+        }
+
+        // ACTION keys can auto-approve external calls
+        if (
+            _to != address(this) &&
+            keyHasPurpose(keccak256(abi.encode(msg.sender)), KeyPurposes.ACTION)
+        ) {
+            return true;
+        }
+
+        return false;
+    }
     /**
      * @dev Internal helper to check if contract can interact
      * @return True if contract can interact
@@ -597,10 +593,13 @@ contract KeyManager is IERC734 {
     }
 
     /**
-     * @dev Internal helper to set canInteract flag
-     * @param _canInteract The value to set
+     * @dev Returns the key storage struct at the specified ERC-7201 slot
+     * @return s The KeyStorage struct pointer for the key management slot
      */
-    function _setCanInteract(bool _canInteract) internal {
-        _getKeyStorage().canInteract = _canInteract;
+    function _getKeyStorage() internal pure returns (KeyStorage storage s) {
+        bytes32 slot = _KEY_STORAGE_SLOT;
+        assembly {
+            s.slot := slot
+        }
     }
 }

@@ -46,21 +46,6 @@ contract Identity is
     MulticallUpgradeable
 {
     /**
-     * @dev ERC-7201 Storage Slot for claim management data
-     * This slot ensures no storage collision between different versions of the contract
-     *
-     * Formula: keccak256(abi.encode(uint256(keccak256(bytes(id))) - 1)) & ~bytes32(uint256(0xff))
-     * where id is the namespace identifier
-     */
-    bytes32 internal constant _CLAIM_STORAGE_SLOT =
-        keccak256(
-            abi.encode(
-                uint256(keccak256(bytes("onchainid.identity.claim.storage"))) -
-                    1
-            )
-        ) & ~bytes32(uint256(0xff));
-
-    /**
      * @dev Storage struct for claim management data
      * @custom:storage-location erc7201:onchainid.identity.claim.storage
      */
@@ -77,15 +62,19 @@ contract Identity is
     }
 
     /**
-     * @dev Returns the claim storage struct at the specified ERC-7201 slot
-     * @return s The ClaimStorage struct pointer for the claim management slot
+     * @dev ERC-7201 Storage Slot for claim management data
+     * This slot ensures no storage collision between different versions of the contract
+     *
+     * Formula: keccak256(abi.encode(uint256(keccak256(bytes(id))) - 1)) & ~bytes32(uint256(0xff))
+     * where id is the namespace identifier
      */
-    function _getClaimStorage() internal pure returns (ClaimStorage storage s) {
-        bytes32 slot = _CLAIM_STORAGE_SLOT;
-        assembly {
-            s.slot := slot
-        }
-    }
+    bytes32 internal constant _CLAIM_STORAGE_SLOT =
+        keccak256(
+            abi.encode(
+                uint256(keccak256(bytes("onchainid.identity.claim.storage"))) -
+                    1
+            )
+        ) & ~bytes32(uint256(0xff));
 
     // Key management functionality is inherited from KeyManager contract
 
@@ -591,6 +580,17 @@ contract Identity is
             ),
             Errors.InvalidClaim()
         );
+    }
+
+    /**
+     * @dev Returns the claim storage struct at the specified ERC-7201 slot
+     * @return s The ClaimStorage struct pointer for the claim management slot
+     */
+    function _getClaimStorage() internal pure returns (ClaimStorage storage s) {
+        bytes32 slot = _CLAIM_STORAGE_SLOT;
+        assembly {
+            s.slot := slot
+        }
     }
 
     /**

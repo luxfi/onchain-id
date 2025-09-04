@@ -36,15 +36,6 @@ contract Version {
     }
 
     /**
-     * @dev Internal function to get the current version.
-     * @notice This function reads the version from ERC-7201 storage
-     * @return The version string
-     */
-    function _getVersion() internal view returns (string memory) {
-        return _getVersionStorage().version;
-    }
-
-    /**
      * @dev Initializes the version storage with the specified version.
      * @notice This function should be called during contract initialization.
      * @param initialVersion The initial version string
@@ -61,6 +52,15 @@ contract Version {
      */
     function _setVersion(string memory newVersion) internal {
         _getVersionStorage().version = newVersion;
+    }
+
+    /**
+     * @dev Internal function to get the current version.
+     * @notice This function reads the version from ERC-7201 storage
+     * @return The version string
+     */
+    function _getVersion() internal view returns (string memory) {
+        return _getVersionStorage().version;
     }
 
     /**
