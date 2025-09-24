@@ -11,6 +11,8 @@ import { Exec } from "@account-abstraction/contracts/utils/Exec.sol";
 
 /**
  * @title IdentitySmartAccount
+ * @author OnChainID Team
+ * @notice Abstract contract providing ERC-4337 Account Abstraction functionality for Identity contracts
  * @dev Abstract contract providing ERC-4337 Account Abstraction functionality for Identity contracts
  *
  * This contract handles:
@@ -34,7 +36,6 @@ abstract contract IdentitySmartAccount is
         bytes data;
     }
 
-    error ExecuteError(uint256 index, bytes error);
     /**
      * @dev Storage struct for ERC-4337 Account Abstraction data
      * @custom:storage-location erc7201:onchainid.identity.smartaccount.storage
@@ -48,7 +49,7 @@ abstract contract IdentitySmartAccount is
      * @dev Hardcoded Entry Point addresses per network
      * Official ERC-4337 Entry Point v0.6: 0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789
      */
-    IEntryPoint internal constant DEFAULT_ENTRY_POINT =
+    IEntryPoint internal constant _DEFAULT_ENTRY_POINT =
         IEntryPoint(0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789);
 
     /**
@@ -71,6 +72,10 @@ abstract contract IdentitySmartAccount is
 
     event EntryPointSet(address indexed entryPoint);
 
+    // ========= Errors =========
+
+    error ExecuteError(uint256 index, bytes error);
+
     // ========= Modifiers =========
 
     /**
@@ -92,7 +97,7 @@ abstract contract IdentitySmartAccount is
         _requireForExecute();
 
         uint256 callsLength = calls.length;
-        for (uint256 i = 0; i < callsLength; i++) {
+        for (uint256 i = 0; i < callsLength; ++i) {
             Call calldata call = calls[i];
             bool ok = Exec.call(call.target, call.value, call.data, gasleft());
             if (!ok) {
@@ -247,21 +252,23 @@ abstract contract IdentitySmartAccount is
     /**
      * @dev Initializes the ERC-4337 functionality with default entry point
      */
+    // solhint-disable-next-line func-name-mixedcase
     function __IdentitySmartAccount_init() internal onlyInitializing {
         __UUPSUpgradeable_init();
-        _getSmartAccountStorage().entryPoint = DEFAULT_ENTRY_POINT;
-        emit EntryPointSet(address(DEFAULT_ENTRY_POINT));
+        _getSmartAccountStorage().entryPoint = _DEFAULT_ENTRY_POINT;
+        emit EntryPointSet(address(_DEFAULT_ENTRY_POINT));
     }
 
     /**
      * @dev Reinitializes the ERC-4337 functionality for upgrades
      * @param versionNumber The version number for the reinitializer modifier
      */
+    // solhint-disable-next-line func-name-mixedcase
     function __IdentitySmartAccount_init_unchained(
         uint8 versionNumber
     ) internal reinitializer(versionNumber) {
-        _getSmartAccountStorage().entryPoint = DEFAULT_ENTRY_POINT;
-        emit EntryPointSet(address(DEFAULT_ENTRY_POINT));
+        _getSmartAccountStorage().entryPoint = _DEFAULT_ENTRY_POINT;
+        emit EntryPointSet(address(_DEFAULT_ENTRY_POINT));
     }
 
     /**
