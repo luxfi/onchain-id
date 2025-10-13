@@ -6,8 +6,9 @@ import { Identity, IIdentity } from "./Identity.sol";
 import { Errors } from "./libraries/Errors.sol";
 import { KeyPurposes } from "./libraries/KeyPurposes.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract ClaimIssuer is IClaimIssuer, Identity {
+contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
     mapping(bytes => bool) public revokedClaims;
 
     /**
@@ -156,8 +157,8 @@ contract ClaimIssuer is IClaimIssuer, Identity {
         // Initialize Identity functionality
         __Identity_init(initialManagementKey);
 
-        // Initialize Version functionality
-        __Version_init("2.2.2");
+        // Initialize version
+        _getClaimStorage().version = "2.2.2";
     }
 
     /**
@@ -168,7 +169,7 @@ contract ClaimIssuer is IClaimIssuer, Identity {
      */
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyManager {
+    ) internal override(UUPSUpgradeable) onlyManager {
         // Only management keys can authorize upgrades
         // This prevents unauthorized upgrades and potential security issues
     }

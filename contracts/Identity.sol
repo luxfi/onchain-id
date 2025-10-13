@@ -4,13 +4,11 @@ pragma solidity ^0.8.27;
 import { MulticallUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/MulticallUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { IIdentity } from "./interface/IIdentity.sol";
 import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
 import { IERC734 } from "./interface/IERC734.sol";
 import { IERC735 } from "./interface/IERC735.sol";
-import { Version } from "./version/Version.sol";
 import { Errors } from "./libraries/Errors.sol";
 import { KeyPurposes } from "./libraries/KeyPurposes.sol";
 import { KeyTypes } from "./libraries/KeyTypes.sol";
@@ -40,9 +38,7 @@ import { KeyManager } from "./KeyManager.sol";
  */
 contract Identity is
     Initializable,
-    UUPSUpgradeable,
     IIdentity,
-    Version,
     KeyManager,
     MulticallUpgradeable
 {
@@ -60,6 +56,8 @@ contract Identity is
         mapping(uint256 => mapping(bytes32 => uint256)) claimIndexInTopic;
         /// @dev Mapping of claimId -> true if claim exists (used for validation/fallback)
         mapping(bytes32 => bool) claimExists;
+        /// @dev Contract version string
+        string version;
     }
 
     /**
@@ -107,7 +105,7 @@ contract Identity is
 
         if (!_isLibrary) {
             __Identity_init(initialManagementKey);
-            super.__Version_init("2.2.2"); // Initialize version storage for direct deployments
+            _getClaimStorage().version = "2.2.2"; // Initialize version for direct deployments
         } else {
             _getKeyStorage().initialized = true;
         }
@@ -115,17 +113,15 @@ contract Identity is
 
     /**
      * @notice When using this contract as an implementation for a proxy, call this initializer with a delegatecall.
-     * @dev This function initializes the upgradeable contract and sets up the initial management key.
-     * It calls the UUPS upgradeability initialization and the Identity-specific initialization.
+     * @dev This function initializes the contract and sets up the initial management key.
      * @param initialManagementKey The ethereum address to be set as the management key of the ONCHAINID.
      */
     function initialize(
         address initialManagementKey
     ) external virtual initializer {
         require(initialManagementKey != address(0), Errors.ZeroAddress());
-        __UUPSUpgradeable_init();
         __Identity_init(initialManagementKey);
-        __Version_init("2.2.2");
+        _getClaimStorage().version = "2.2.2";
     }
 
     /**
@@ -139,6 +135,14 @@ contract Identity is
         uint256 _topic
     ) external view override(IERC735) returns (bytes32[] memory claimIds) {
         return _getClaimStorage().claimsByTopic[_topic];
+    }
+
+    /**
+     * @dev Returns the current version of the contract.
+     * @return The version string
+     */
+    function version() external view returns (string memory) {
+        return _getClaimStorage().version;
     }
 
     /**
@@ -169,7 +173,7 @@ contract Identity is
         string memory newVersion,
         uint8 versionNumber
     ) public reinitializer(versionNumber) onlyManager {
-        super._setVersion(newVersion);
+        _getClaimStorage().version = newVersion;
     }
 
     /**
@@ -400,19 +404,6 @@ contract Identity is
         ks.canInteract = true;
 
         _setupInitialManagementKey(initialManagementKey);
-    }
-
-    /**
-     * @dev Internal function to authorize the upgrade of the contract.
-     * This function is required by UUPSUpgradeable.
-     *
-     * @param newImplementation The address of the new implementation.
-     */
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal virtual override onlyManager {
-        // Only management keys can authorize upgrades
-        // This prevents unauthorized upgrades and potential rug pulls
     }
 
     // ========= Internal (non-view/pure) =========
