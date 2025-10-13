@@ -10,7 +10,7 @@ describe("Identity Proxy Pattern", () => {
     const identityProxy = await deployIdentityWithProxy(deployerWallet.address);
 
     // The proxy should be initialized and have the correct version
-    expect(await identityProxy.version()).to.equal("2.2.2");
+    expect(await identityProxy.version()).to.equal("3.0.0");
 
     // The proxy should have the correct management key
     const hashedKey = ethers.keccak256(

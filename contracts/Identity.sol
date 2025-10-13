@@ -56,8 +56,6 @@ contract Identity is
         mapping(uint256 => mapping(bytes32 => uint256)) claimIndexInTopic;
         /// @dev Mapping of claimId -> true if claim exists (used for validation/fallback)
         mapping(bytes32 => bool) claimExists;
-        /// @dev Contract version string
-        string version;
     }
 
     /**
@@ -105,7 +103,6 @@ contract Identity is
 
         if (!_isLibrary) {
             __Identity_init(initialManagementKey);
-            _getClaimStorage().version = "3.0.0";
         } else {
             _getKeyStorage().initialized = true;
         }
@@ -121,7 +118,6 @@ contract Identity is
     ) external virtual initializer {
         require(initialManagementKey != address(0), Errors.ZeroAddress());
         __Identity_init(initialManagementKey);
-        _getClaimStorage().version = "3.0.0";
     }
 
     /**
@@ -141,8 +137,8 @@ contract Identity is
      * @dev Returns the current version of the contract.
      * @return The version string
      */
-    function version() external view returns (string memory) {
-        return _getClaimStorage().version;
+    function version() external pure virtual returns (string memory) {
+        return "3.0.0";
     }
 
     /**
@@ -158,22 +154,6 @@ contract Identity is
             interfaceId == type(IERC734).interfaceId ||
             interfaceId == type(IERC735).interfaceId ||
             interfaceId == type(IIdentity).interfaceId);
-    }
-
-    /**
-     * @notice Reinitializes the contract for version upgrades
-     * @dev This function should be called during contract upgrades to set up new features.
-     * It uses the reinitializer modifier to ensure it can only be called once per version number.
-     * Only management keys can call this function to prevent unauthorized version changes.
-     *
-     * @param newVersion The new version string to set
-     * @param versionNumber The version number for the reinitializer modifier (must be unique per upgrade)
-     */
-    function reinitialize(
-        string memory newVersion,
-        uint8 versionNumber
-    ) public reinitializer(versionNumber) onlyManager {
-        _getClaimStorage().version = newVersion;
     }
 
     /**

@@ -27,7 +27,7 @@ describe("Identity", () => {
   it("should have version initialized when deployed as regular contract", async () => {
     const { identityImplementation } = await loadFixture(deployIdentityFixture);
     // When deployed as regular contract, version should be initialized
-    expect(await identityImplementation.version()).to.equal("2.2.2");
+    expect(await identityImplementation.version()).to.equal("3.0.0");
   });
 
   it("should support ERC165 interface detection", async function () {
