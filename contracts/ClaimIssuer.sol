@@ -5,6 +5,7 @@ import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
 import { Identity, IIdentity } from "./Identity.sol";
 import { Errors } from "./libraries/Errors.sol";
 import { KeyPurposes } from "./libraries/KeyPurposes.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract ClaimIssuer is IClaimIssuer, Identity {
     mapping(bytes => bool) public revokedClaims;
@@ -112,8 +113,16 @@ contract ClaimIssuer is IClaimIssuer, Identity {
             abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)
         );
 
-        // Recover address of data signer
-        address recovered = getRecoveredAddress(sig, prefixedHash);
+        // Recover address of data signer using OpenZeppelin's ECDSA
+        (address recovered, ECDSA.RecoverError error, ) = ECDSA.tryRecover(
+            prefixedHash,
+            sig
+        );
+
+        // If recovery failed, return false
+        if (error != ECDSA.RecoverError.NoError) {
+            return false;
+        }
 
         // Take hash of recovered address
         bytes32 hashedAddr = keccak256(abi.encode(recovered));

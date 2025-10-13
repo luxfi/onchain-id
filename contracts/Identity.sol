@@ -5,6 +5,7 @@ import { MulticallUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { IIdentity } from "./interface/IIdentity.sol";
 import { IClaimIssuer } from "./interface/IClaimIssuer.sol";
 import { IERC734 } from "./interface/IERC734.sol";
@@ -363,51 +364,22 @@ contract Identity is
             abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)
         );
 
-        // Step 3: Recover the signer's address from the signature
-        address recovered = getRecoveredAddress(sig, prefixedHash);
+        // Step 3: Recover the signer's address from the signature using OpenZeppelin's ECDSA
+        (address recovered, ECDSA.RecoverError error, ) = ECDSA.tryRecover(
+            prefixedHash,
+            sig
+        );
+
+        // If recovery failed, return false
+        if (error != ECDSA.RecoverError.NoError) {
+            return false;
+        }
 
         // Step 4: Hash the recovered address for key lookup
         bytes32 hashedAddr = keccak256(abi.encode(recovered));
 
         // Step 5: Check if the recovered address has CLAIM_SIGNER purpose
         return keyHasPurpose(hashedAddr, KeyPurposes.CLAIM_SIGNER);
-    }
-
-    /**
-     * @dev returns the address that signed the given data
-     * @param sig the signature of the data
-     * @param dataHash the data that was signed
-     * returns the address that signed dataHash and created the signature sig
-     */
-    function getRecoveredAddress(
-        bytes memory sig,
-        bytes32 dataHash
-    ) public pure returns (address addr) {
-        // Step 1: Declare variables for signature components
-        bytes32 ra; // r component of the signature
-        bytes32 sa; // s component of the signature
-        uint8 va; // v component (recovery byte)
-
-        // Step 2: Validate signature length (must be exactly 65 bytes)
-        if (sig.length != 65) {
-            return address(0); // Invalid signature length
-        }
-
-        // Step 3:  // Divide the signature in r, s and v variables
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            ra := mload(add(sig, 32)) // Load r (first 32 bytes)
-            sa := mload(add(sig, 64)) // Load s (next 32 bytes)
-            va := byte(0, mload(add(sig, 96))) // Load v (last byte)
-        }
-
-        // Step 4: Normalize recovery byte to Ethereum standard (27 or 28)
-        if (va < 27) {
-            va += 27; // Convert 0-25 to 27-52 for Ethereum compatibility
-        }
-
-        // Step 5: Recover the signer's address using ecrecover
-        return ecrecover(dataHash, va, ra, sa);
     }
 
     /**

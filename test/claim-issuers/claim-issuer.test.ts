@@ -150,62 +150,74 @@ describe("ClaimIssuer - Reference (with revoke)", () => {
     });
   });
 
-  describe("getRecoveredAddress", () => {
-    it("should return with a zero address with signature is not of proper length", async () => {
-      const { claimIssuer, aliceClaim666 } = await loadFixture(
+  describe("signature validation with ECDSA", () => {
+    it("should return false for invalid signature length", async () => {
+      const { claimIssuer, aliceIdentity, aliceClaim666 } = await loadFixture(
         deployIdentityFixture,
       );
 
-      expect(
-        await claimIssuer.getRecoveredAddress(
-          aliceClaim666.signature + "00",
-          ethers.getBytes(
-            ethers.keccak256(
-              ethers.AbiCoder.defaultAbiCoder().encode(
-                ["address", "uint256", "bytes"],
-                [
-                  aliceClaim666.identity,
-                  aliceClaim666.topic,
-                  aliceClaim666.data,
-                ],
-              ),
-            ),
-          ),
-        ),
-      ).to.be.equal(ethers.ZeroAddress);
+      // Add extra byte to make signature invalid (66 bytes instead of 65)
+      const invalidSignature = aliceClaim666.signature + "00";
+
+      const isValid = await claimIssuer.isClaimValid(
+        await aliceIdentity.getAddress(),
+        aliceClaim666.topic,
+        invalidSignature,
+        aliceClaim666.data,
+      );
+
+      expect(isValid).to.be.false;
     });
 
-    it("should handle signature with recovery byte less than 27", async () => {
-      const { claimIssuer, aliceClaim666, claimIssuerWallet } =
-        await loadFixture(deployIdentityFixture);
-
-      // Create a data hash to sign
-      const dataHash = ethers.keccak256(
-        ethers.AbiCoder.defaultAbiCoder().encode(
-          ["address", "uint256", "bytes"],
-          [aliceClaim666.identity, aliceClaim666.topic, aliceClaim666.data],
-        ),
+    it("should return false for malformed signature", async () => {
+      const { claimIssuer, aliceIdentity, aliceClaim666 } = await loadFixture(
+        deployIdentityFixture,
       );
 
-      // Sign the data hash with claimIssuerWallet (signMessage handles the prefix automatically)
-      const signature = await claimIssuerWallet.signMessage(
-        ethers.getBytes(dataHash),
+      // Use completely invalid signature data
+      const invalidSignature = "0x1234567890abcdef";
+
+      const isValid = await claimIssuer.isClaimValid(
+        await aliceIdentity.getAddress(),
+        aliceClaim666.topic,
+        invalidSignature,
+        aliceClaim666.data,
       );
 
-      // Convert signature to bytes and modify the recovery byte to be less than 27
-      const signatureBytes = ethers.getBytes(signature);
-      signatureBytes[64] = 0; // Set recovery byte to 0 (less than 27)
+      expect(isValid).to.be.false;
+    });
 
-      // Recover the address - this should trigger line 694 (va += 27)
-      const recoveredAddress = await claimIssuer.getRecoveredAddress(
-        ethers.hexlify(signatureBytes),
-        dataHash,
+    it("should return false for signature with wrong signer", async () => {
+      const { claimIssuer, aliceIdentity, aliceClaim666 } = await loadFixture(
+        deployIdentityFixture,
       );
 
-      // The recovered address should match the signer's address
-      // Note: When we modify the recovery byte, the recovered address might be different
-      // but the function should still work correctly by adding 27 to va
-      expect(recoveredAddress).to.not.equal(ethers.ZeroAddress);
+      // Use signature with zeroed out bytes (invalid signer)
+      const invalidSignature = ethers.zeroPadValue("0x00", 65);
+
+      const isValid = await claimIssuer.isClaimValid(
+        await aliceIdentity.getAddress(),
+        aliceClaim666.topic,
+        invalidSignature,
+        aliceClaim666.data,
+      );
+
+      expect(isValid).to.be.false;
+    });
+
+    it("should return true for valid signature from authorized signer", async () => {
+      const { claimIssuer, aliceIdentity, aliceClaim666 } = await loadFixture(
+        deployIdentityFixture,
+      );
+
+      const isValid = await claimIssuer.isClaimValid(
+        await aliceIdentity.getAddress(),
+        aliceClaim666.topic,
+        aliceClaim666.signature,
+        aliceClaim666.data,
+      );
+
+      expect(isValid).to.be.true;
     });
   });
 
