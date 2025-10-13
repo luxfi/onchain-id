@@ -158,7 +158,7 @@ contract ClaimIssuer is IClaimIssuer, Identity, UUPSUpgradeable {
         __Identity_init(initialManagementKey);
 
         // Initialize version
-        _getClaimStorage().version = "2.2.2";
+        _getClaimStorage().version = "3.0.0";
     }
 
     /**

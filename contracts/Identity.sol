@@ -105,7 +105,7 @@ contract Identity is
 
         if (!_isLibrary) {
             __Identity_init(initialManagementKey);
-            _getClaimStorage().version = "2.2.2"; // Initialize version for direct deployments
+            _getClaimStorage().version = "3.0.0";
         } else {
             _getKeyStorage().initialized = true;
         }
@@ -121,7 +121,7 @@ contract Identity is
     ) external virtual initializer {
         require(initialManagementKey != address(0), Errors.ZeroAddress());
         __Identity_init(initialManagementKey);
-        _getClaimStorage().version = "2.2.2";
+        _getClaimStorage().version = "3.0.0";
     }
 
     /**
