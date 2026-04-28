@@ -1,6 +1,18 @@
 ![OnchainID Smart Contracts](./onchainid_logo_final.png)
 ---
 
+## Lux Fork
+
+This is a Lux Industries fork of the canonical upstream:
+- **Upstream**: https://github.com/onchain-id/solidity
+- **Pinned commit**: `0e681fbf`
+- **Pinned tag**: `2.2.2-beta3`
+- **License**: GPL-3.0 (preserved from upstream — see `LICENSE.md`, provenance in `SOURCE.md`)
+- **Lux extensions**: NONE (verbatim parity with upstream).
+- **Tag policy**: track upstream semver verbatim. Divergence (if ever required) signaled by next-minor bump, NOT prerelease suffixes.
+
+---
+
 ![GitHub](https://img.shields.io/github/license/onchain-id/solidity?color=green)
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/onchain-id/solidity)
 ![GitHub Workflow Status (branch)](https://img.shields.io/github/actions/workflow/status/onchain-id/solidity/publish-release.yml)
