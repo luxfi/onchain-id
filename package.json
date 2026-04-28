@@ -1,5 +1,5 @@
 {
-  "name": "@onchain-id/solidity",
+  "name": "@luxfi/onchain-id",
   "version": "2.2.1",
   "description": "EVM solidity smart contracts for Blockchain OnchainID identities.",
   "files": [
