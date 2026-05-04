@@ -31,7 +31,7 @@ contract IdFactory is IIdFactory, Ownable {
 
 
     // setting
-    constructor (address implementationAuthority) {
+    constructor (address implementationAuthority) Ownable(msg.sender) {
         require(implementationAuthority != address(0), "invalid argument - zero address");
         _implementationAuthority = implementationAuthority;
     }
