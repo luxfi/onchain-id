@@ -10,7 +10,7 @@ contract ImplementationAuthority is IImplementationAuthority, Ownable {
     // the address of implementation of ONCHAINID
     address internal _implementation;
 
-    constructor(address implementation) {
+    constructor(address implementation) Ownable(msg.sender) {
         require(implementation != address(0), "invalid argument - zero address");
         _implementation = implementation;
         emit UpdatedImplementation(implementation);
